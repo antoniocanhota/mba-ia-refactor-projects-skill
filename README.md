@@ -117,6 +117,21 @@ casada pelo nome).
 - **Validar sem sujar o fixture:** a Fase 3 foi testada de verdade (boot + endpoints)
   e depois **revertida via git**, preservando o `code-smells-project` no estado
   original de entrada do desafio.
+- **Escala de severidade genérica interferindo na classificação:** `anti-patterns.md`
+  tinha uma seção "Escala de severidade" no topo do arquivo, além da severidade já
+  anotada em cada entrada do catálogo. Essa seção citava exemplos soltos (ex: "SQL
+  Injection" como CRITICAL) que acabaram sendo usados para elevar achados além da
+  severidade definida na entrada específica do catálogo, tornando a classificação
+  inconsistente entre auditorias. Removida a pedido do usuário — a severidade de um
+  finding vem só da entrada correspondente do catálogo, nunca de uma escala geral solta.
+- **Fase 3 removeu um endpoint em vez de protegê-lo:** ao rodar a Fase 3 em
+  `code-smells-project`, o endpoint `/admin/query` (executa SQL arbitrário vindo do
+  cliente, achado CRITICAL) foi **removido** por ter sido interpretado como "sem fix
+  seguro possível". O usuário corrigiu: o checklist de validação já exige "Endpoints
+  originais respondem corretamente" — a correção certa é **proteger** (autenticação),
+  nunca **apagar** funcionalidade. `SKILL.md` ganhou uma regra operacional explícita
+  proibindo remoção de endpoints/funcionalidade na Fase 3, mesmo para achados CRITICAL
+  sem correção óbvia; o endpoint foi restaurado atrás de autenticação por token.
 
 **C) Seção "Resultados":**
 
