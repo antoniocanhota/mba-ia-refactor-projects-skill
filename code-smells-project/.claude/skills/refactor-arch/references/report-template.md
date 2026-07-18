@@ -29,7 +29,9 @@ Total: <N> findings
 ================================
 ```
 
-Depois de imprimir o relatório, o `SKILL.md` **pausa** e pergunta:
+Depois de imprimir o relatório, a Fase 2 **salva o mesmo conteúdo em um arquivo `.md`**,
+perguntando ao usuário o path e o nome do arquivo (default sugerido: `./audit-report.md`
+na raiz do projeto analisado; sempre com extensão `.md`). Em seguida **pausa** e pergunta:
 
 ```
 Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]

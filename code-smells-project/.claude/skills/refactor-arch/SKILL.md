@@ -68,7 +68,14 @@ Ainda **read-only**.
 3. Classifique por severidade conforme a escala do catálogo.
 4. Gere o **ARCHITECTURE AUDIT REPORT** seguindo `references/report-template.md`
    (Summary por severidade + Findings + Total).
-5. **PARE e peça confirmação explícita antes de modificar qualquer arquivo:**
+5. **Salve o relatório em um arquivo Markdown.** Pergunte ao usuário o **path** e o
+   **nome do arquivo** (ex: `Onde salvo o relatório? (path e nome do arquivo .md)`).
+   Aplique um default sensato se ele não informar (ex: `./audit-report.md` na raiz do
+   projeto analisado) e garanta a extensão `.md`. Escreva o mesmo conteúdo do relatório
+   impresso no arquivo e confirme o caminho salvo. Isso é gravação de um relatório novo
+   — não conta como "modificar arquivos do projeto"; a regra da Fase 2 continua valendo
+   para o código-fonte.
+6. **PARE e peça confirmação explícita antes de modificar qualquer arquivo:**
 
 ```
 Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
