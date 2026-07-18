@@ -4,6 +4,9 @@ from models.user import User
 from models.task import Task
 from datetime import datetime
 import hashlib, json, re
+import logging
+
+logger = logging.getLogger(__name__)
 
 user_bp = Blueprint('users', __name__)
 
@@ -80,13 +83,13 @@ def create_user():
     try:
         db.session.add(user)
         db.session.commit()
-        print(f"Usuário criado: {user.id} - {user.name}")
+        logger.info("Usuário criado: %s - %s", user.id, user.name)
 
         response_data = user.to_dict()
         return jsonify(response_data), 201
     except Exception as e:
         db.session.rollback()
-        print(f"ERRO: {str(e)}")
+        logger.exception("Erro ao criar usuário")
         return jsonify({'error': 'Erro ao criar usuário'}), 500
 
 @user_bp.route('/users/<int:user_id>', methods=['PUT'])
@@ -144,7 +147,7 @@ def delete_user(user_id):
     try:
         db.session.delete(user)
         db.session.commit()
-        print(f"Usuário deletado: {user_id}")
+        logger.info("Usuário deletado: %s", user_id)
         return jsonify({'message': 'Usuário deletado com sucesso'}), 200
     except:
         db.session.rollback()

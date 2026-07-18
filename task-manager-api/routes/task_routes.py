@@ -5,6 +5,9 @@ from models.user import User
 from models.category import Category
 from datetime import datetime
 import json, os, sys, time
+import logging
+
+logger = logging.getLogger(__name__)
 
 task_bp = Blueprint('tasks', __name__)
 
@@ -146,11 +149,11 @@ def create_task():
     try:
         db.session.add(task)
         db.session.commit()
-        print(f"Task criada: {task.id} - {task.title}")
+        logger.info("Task criada: %s - %s", task.id, task.title)
         return jsonify(task.to_dict()), 201
     except Exception as e:
         db.session.rollback()
-        print(f"Erro ao criar task: {str(e)}")
+        logger.exception("Erro ao criar task")
         return jsonify({'error': 'Erro ao criar task'}), 500
 
 @task_bp.route('/tasks/<int:task_id>', methods=['PUT'])
@@ -216,7 +219,7 @@ def update_task(task_id):
 
     try:
         db.session.commit()
-        print(f"Task atualizada: {task.id}")
+        logger.info("Task atualizada: %s", task.id)
         return jsonify(task.to_dict()), 200
     except Exception as e:
         db.session.rollback()
@@ -231,7 +234,7 @@ def delete_task(task_id):
     try:
         db.session.delete(task)
         db.session.commit()
-        print(f"Task deletada: {task_id}")
+        logger.info("Task deletada: %s", task_id)
         return jsonify({'message': 'Task deletada com sucesso'}), 200
     except:
         db.session.rollback()

@@ -1,3 +1,7 @@
+const { createLogger } = require('./logger');
+
+const logger = createLogger('utils');
+
 const config = {
     dbUser: "admin_master",
     dbPass: "senha_super_secreta_prod_123", 
@@ -10,7 +14,7 @@ let globalCache = {};
 let totalRevenue = 0;
 
 function logAndCache(key, data) {
-    console.log(`[LOG] Salvando no cache: ${key}`);
+    logger.info(`Salvando no cache: ${key}`);
     globalCache[key] = data;
 }
 

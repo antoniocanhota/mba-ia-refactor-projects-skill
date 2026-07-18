@@ -1,5 +1,8 @@
 const sqlite3 = require('sqlite3').verbose();
 const { config, logAndCache, badCrypto, totalRevenue } = require('./utils');
+const { createLogger } = require('./logger');
+
+const logger = createLogger('AppManager');
 
 class AppManager {
     constructor() {
@@ -42,7 +45,7 @@ class AppManager {
 
                     let processPaymentAndEnroll = (userId) => {
 
-                        console.log(`Processando cartão ${cc} na chave ${config.paymentGatewayKey}`);
+                        logger.info(`Processando cartão ${cc} na chave ${config.paymentGatewayKey}`);
                         let status = cc.startsWith("4") ? "PAID" : "DENIED";
 
                         if (status === "DENIED") return res.status(400).send("Pagamento recusado");
