@@ -1,18 +1,14 @@
-import logging
-
 from flask import request, jsonify
 import models
 from database import get_db
 
-logger = logging.getLogger(__name__)
-
 def listar_produtos():
     try:
         produtos = models.get_todos_produtos()
-        logger.info("Listando %s produtos", len(produtos))
+        print("Listando " + str(len(produtos)) + " produtos")
         return jsonify({"dados": produtos, "sucesso": True}), 200
     except Exception as e:
-        logger.exception("Erro ao listar produtos")
+        print("ERRO: " + str(e))
         return jsonify({"erro": str(e)}), 500
 
 def buscar_produto(id):
@@ -58,11 +54,11 @@ def criar_produto():
             return jsonify({"erro": "Categoria inválida. Válidas: " + str(categorias_validas)}), 400
 
         id = models.criar_produto(nome, descricao, preco, estoque, categoria)
-        logger.info("Produto criado com ID: %s", id)
+        print("Produto criado com ID: " + str(id))
         return jsonify({"dados": {"id": id}, "sucesso": True, "mensagem": "Produto criado"}), 201
 
     except Exception as e:
-        logger.exception("Erro ao criar produto")
+        print("ERRO ao criar produto: " + str(e))
         return jsonify({"erro": str(e)}), 500
 
 def atualizar_produto(id):
@@ -107,7 +103,7 @@ def deletar_produto(id):
             return jsonify({"erro": "Produto não encontrado"}), 404
 
         models.deletar_produto(id)
-        logger.info("Produto %s deletado", id)
+        print("Produto " + str(id) + " deletado")
         return jsonify({"sucesso": True, "mensagem": "Produto deletado"}), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
@@ -162,7 +158,7 @@ def criar_usuario():
             return jsonify({"erro": "Nome, email e senha são obrigatórios"}), 400
 
         id = models.criar_usuario(nome, email, senha)
-        logger.info("Usuário criado: %s", email)
+        print("Usuário criado: " + email)
         return jsonify({"dados": {"id": id}, "sucesso": True}), 201
 
     except Exception as e:
@@ -180,10 +176,10 @@ def login():
         usuario = models.login_usuario(email, senha)
         if usuario:
 
-            logger.info("Login bem-sucedido: %s", email)
+            print("Login bem-sucedido: " + email)
             return jsonify({"dados": usuario, "sucesso": True, "mensagem": "Login OK"}), 200
         else:
-            logger.warning("Login falhou: %s", email)
+            print("Login falhou: " + email)
             return jsonify({"erro": "Email ou senha inválidos", "sucesso": False}), 401
 
     except Exception as e:
@@ -209,9 +205,9 @@ def criar_pedido():
         if "erro" in resultado:
             return jsonify({"erro": resultado["erro"], "sucesso": False}), 400
 
-        logger.info("Enviando email: Pedido %s criado para usuario %s", resultado["pedido_id"], usuario_id)
-        logger.info("Enviando SMS: Seu pedido foi recebido!")
-        logger.info("Enviando push: Novo pedido recebido pelo sistema")
+        print("ENVIANDO EMAIL: Pedido " + str(resultado["pedido_id"]) + " criado para usuario " + str(usuario_id))
+        print("ENVIANDO SMS: Seu pedido foi recebido!")
+        print("ENVIANDO PUSH: Novo pedido recebido pelo sistema")
 
         return jsonify({
             "dados": resultado,
@@ -220,7 +216,7 @@ def criar_pedido():
         }), 201
 
     except Exception as e:
-        logger.exception("Erro crítico ao criar pedido")
+        print("ERRO CRITICO ao criar pedido: " + str(e))
         return jsonify({"erro": str(e)}), 500
 
 def listar_pedidos_usuario(usuario_id):
@@ -249,9 +245,9 @@ def atualizar_status_pedido(pedido_id):
         models.atualizar_status_pedido(pedido_id, novo_status)
 
         if novo_status == "aprovado":
-            logger.info("Notificação: Pedido %s foi aprovado! Preparar envio.", pedido_id)
+            print("NOTIFICAÇÃO: Pedido " + str(pedido_id) + " foi aprovado! Preparar envio.")
         if novo_status == "cancelado":
-            logger.info("Notificação: Pedido %s cancelado. Devolver estoque.", pedido_id)
+            print("NOTIFICAÇÃO: Pedido " + str(pedido_id) + " cancelado. Devolver estoque.")
 
         return jsonify({"sucesso": True, "mensagem": "Status atualizado"}), 200
 

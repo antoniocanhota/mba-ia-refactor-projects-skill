@@ -5,12 +5,6 @@ from routes.task_routes import task_bp
 from routes.user_routes import user_bp
 from routes.report_routes import report_bp
 import os, sys, json, datetime
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
 
 app = Flask(__name__)
 

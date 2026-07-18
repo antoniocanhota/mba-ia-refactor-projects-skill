@@ -1,15 +1,7 @@
-import logging
-
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import controllers
 from database import get_db
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "minha-chave-super-secreta-123"
@@ -61,7 +53,7 @@ def reset_database():
     cursor.execute("DELETE FROM produtos")
     cursor.execute("DELETE FROM usuarios")
     db.commit()
-    logger.warning("Banco de dados resetado")
+    print("!!! BANCO DE DADOS RESETADO !!!")
     return jsonify({"mensagem": "Banco de dados resetado", "sucesso": True}), 200
 
 @app.route("/admin/query", methods=["POST"])

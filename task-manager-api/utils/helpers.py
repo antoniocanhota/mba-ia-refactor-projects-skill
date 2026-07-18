@@ -5,9 +5,6 @@ import json
 import sys
 import math
 import hashlib
-import logging
-
-logger = logging.getLogger(__name__)
 
 def format_date(date_obj):
     if date_obj:
@@ -39,9 +36,9 @@ def generate_id():
 def log_action(action, details=None):
 
     timestamp = datetime.utcnow()
-    logger.info("[%s] ACTION: %s", timestamp, action)
+    print(f"[{timestamp}] ACTION: {action}")
     if details:
-        logger.info("  DETAILS: %s", details)
+        print(f"  DETAILS: {details}")
 
 def parse_date(date_string):
     try:
