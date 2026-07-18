@@ -37,17 +37,3 @@ registra ocorrências com `arquivo:linha`.
 - **Não é ocorrência:** banners de inicialização de CLI e mensagens de UX de linha
   de comando podem ser `print` legítimo — avalie o contexto e reporte com ressalva.
 - **Transformação:** ver `refactoring-playbook.md` → "print() → logging".
-
-<!--
-### [SEVERITY] <próximo anti-pattern>
-- **Sinais de detecção:** ...
-- **Impacto:** ...
-- **Transformação:** ver refactoring-playbook.md → "<nome>".
-
-Incrementos previstos (spec exige ≥8 no total, com deprecated APIs):
-CRITICAL — credenciais hardcoded, SQL Injection, God Class, endpoint sem auth.
-HIGH     — regra de negócio no controller, estado global mutável, acoplamento sem DI.
-MEDIUM   — queries N+1, duplicação de validação, try/except genérico vazando erro.
-LOW      — nomenclatura fraca, magic values / config hardcoded.
-DEPRECATED — uso de API obsoleta + recomendação do equivalente moderno.
--->
