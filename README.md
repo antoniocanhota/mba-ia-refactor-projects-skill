@@ -106,11 +106,25 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 
 **C) Seção "Resultados":**
 
-> Nesta sessão a skill foi executada **apenas no `code-smells-project`** (Python/Flask).
-> `ecommerce-api-legacy` (Node/Express) e `task-manager-api` (Python/Flask) têm, até
-> aqui, **somente a análise manual** da seção A — ainda não foram processados pela
-> skill. Os números abaixo refletem o **catálogo MVP (1 anti-pattern)**, e por isso
-> diferem — de propósito — da análise manual mais ampla da seção A.
+> A skill foi executada ponta-a-ponta (Fase 1 → Fase 2 → Fase 3) nos **3 projetos**.
+> Os números abaixo refletem o **catálogo MVP (1 anti-pattern: `print()`/`console.log`
+> como logging, LOW)** — de propósito menor que a análise manual mais ampla da seção A,
+> que cobre categorias (SQL Injection, credenciais hardcoded, God Class, endpoints sem
+> auth etc.) ainda não formalizadas no catálogo desta versão da skill.
+
+Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-{1,2,3}.md`):
+
+| Projeto | CRITICAL | HIGH | MEDIUM | LOW | Total |
+|---|---|---|---|---|---|
+| code-smells-project | 0 | 0 | 0 | 13 | 13 |
+| ecommerce-api-legacy | 0 | 0 | 0 | 2 | 2 |
+| task-manager-api | 0 | 0 | 0 | 11 | 11 |
+
+Todos os findings são a mesma categoria (`print()`/`console.log` como logging); cada
+relatório também documenta, em seção separada e **não pontuada** no total acima,
+achados reais fora do catálogo atual (SQL Injection, credenciais hardcoded, God Class,
+endpoints sem auth, hash de senha caseiro, N+1, etc.) — mantidos como roteiro para
+incrementos futuros do catálogo, sem serem tratados como confirmados nesta versão MVP.
 
 ***code-smells-project*** (Python/Flask) — *processado pela skill*
 
@@ -118,64 +132,169 @@ Stack detectada na Fase 1: Python + Flask 3.1.1 + flask-cors, SQLite (tabelas
 `produtos`, `usuarios`, `pedidos`, `itens_pedido`), domínio E-commerce, 4 arquivos
 (~780 linhas), arquitetura monolítica.
 
-Resumo do relatório de auditoria (Fase 2):
+Antes / depois da estrutura: não houve restruturação de diretórios (achados LOW
+isolados não a justificam). Mudança in-place em `app.py` e `controllers.py`:
+`import logging` + `logging.basicConfig` central em `app.py`; `logger =
+logging.getLogger(__name__)` por módulo; os 13 `print()` de runtime (sucesso/erro em
+CRUD de produtos, usuários, login e pedidos, e o reset destrutivo do banco) viraram
+`logger.info` / `logger.warning` / `logger.exception` com argumentos lazy (`%s`).
+Banner de CLI em `app.py` (bloco `__main__`) preservado. Estrutura de arquivos
+inalterada (`app.py`, `controllers.py`, `models.py`, `database.py`).
 
-| CRITICAL | HIGH | MEDIUM | LOW | Total |
-|---|---|---|---|---|
-| 0 | 0 | 0 | 1 | 1 |
+## Checklist de Validação
 
-Único finding: `[LOW] print() como mecanismo de logging` em `controllers.py`
-(14 ocorrências) e `app.py:56` — banners de startup de CLI preservados.
+### Fase 1 — Análise
+- [x] Linguagem detectada corretamente (Python)
+- [x] Framework detectado corretamente (Flask 3.1.1 + flask-cors)
+- [x] Domínio da aplicação descrito corretamente (e-commerce: produtos/usuários/pedidos)
+- [x] Número de arquivos analisados condiz com a realidade (4 arquivos, ~780 linhas)
 
-Antes / depois da estrutura: não houve restruturação de diretórios (o único achado
-LOW não a justifica). A mudança foi in-place: `import logging` + `logger` por módulo;
-`print(...)` → `logger.info / warning / exception`; `logging.basicConfig` central em
-`app.py`. Estrutura de arquivos inalterada (`app.py`, `controllers.py`, `models.py`,
-`database.py`).
+### Fase 2 — Auditoria
+- [x] Relatório segue o template definido nos arquivos de referência
+- [x] Cada finding tem arquivo e linhas exatos
+- [x] Findings ordenados por severidade (CRITICAL → LOW)
+- [x] Mínimo de 5 findings identificados (13)
+- [ ] Detecção de APIs deprecated incluída *(não implementada nesta versão do catálogo)*
+- [x] Skill pausa e pede confirmação antes da Fase 3
 
-Checklist de validação:
-
-- [x] Aplicação inicializa sem erros (`python app.py` / runner em porta 5055)
-- [x] Endpoints respondem: `GET /health` → 200, `GET /produtos` → 200, `POST /produtos` → 201
-- [x] Zero ocorrências remanescentes do anti-pattern corrigido (só banners CLI)
-- [x] Fixture revertido ao estado original após o teste
+### Fase 3 — Refatoração
+- [ ] Estrutura de diretórios segue padrão MVC *(fora de escopo: único achado é LOW e isolado, guideline de "adaptação ao contexto" não exige restruturação)*
+- [ ] Configuração extraída para módulo de config *(fora de escopo do único anti-pattern do catálogo)*
+- [ ] Models criados para abstrair dados *(já existiam; não é objeto desta transformação)*
+- [ ] Views/Routes separadas *(fora de escopo)*
+- [ ] Controllers concentram o fluxo da aplicação *(fora de escopo)*
+- [ ] Error handling centralizado *(fora de escopo)*
+- [x] Entry point claro (`app.py`)
+- [x] Aplicação inicia sem erros
+- [x] Endpoints originais respondem corretamente
 
 Log da aplicação rodando após a refatoração (Fase 3):
 
 ```
-2026-... INFO werkzeug:  * Running on http://127.0.0.1:5055
-2026-... INFO werkzeug: 127.0.0.1 - - "GET /health HTTP/1.1" 200 -
-2026-... INFO controllers: Listando 10 produtos
-2026-... INFO werkzeug: 127.0.0.1 - - "GET /produtos HTTP/1.1" 200 -
-2026-... INFO controllers: Produto criado com ID: 11
-2026-... INFO werkzeug: 127.0.0.1 - - "POST /produtos HTTP/1.1" 201 -
+2026-07-17 23:26:57,139 INFO controllers: Listando 10 produtos
+2026-07-17 23:26:57,140 INFO werkzeug: 127.0.0.1 - - "GET /produtos HTTP/1.1" 200 -
+2026-07-17 23:26:58,004 INFO controllers: Produto criado com ID: 11
+2026-07-17 23:26:58,005 INFO werkzeug: 127.0.0.1 - - "POST /produtos HTTP/1.1" 201 -
 ```
 
-Os `print()` viraram logging estruturado (timestamp + nível + logger), confirmando a
-transformação.
+***ecommerce-api-legacy*** (Node/Express) — *processado pela skill*
 
-***ecommerce-api-legacy*** (Node/Express) — *skill ainda não executada*
+Stack detectada na Fase 1: Node.js + Express, SQLite (via `sqlite3`), domínio
+E-commerce/checkout, 3 arquivos-fonte (~180 linhas), God Class `AppManager.js`.
 
-- Auditoria (Fase 2): não executada nesta sessão.
-- Refatoração (Fase 3): não executada.
-- Checklist de validação: não aplicável ainda.
-- Situação atual: existe apenas a **análise manual** da seção A. Rodar a skill aqui é
-  o próximo passo para exercitar a natureza agnóstica numa stack Node/Express.
+Antes / depois da estrutura: não houve restruturação de diretórios (achados LOW
+isolados não a justificam). Único arquivo novo: `src/logger.js` — logger mínimo com
+níveis (`error/warn/info/debug`), timestamp ISO e nome do módulo de origem, nível
+configurável via `LOG_LEVEL`. `src/app.js` chama `configureLogger(...)` uma única vez
+no boot; `src/AppManager.js` e `src/utils.js` trocaram os 2 `console.log` de runtime
+(log do processamento de pagamento e do `logAndCache`) por `logger.info(...)`. Banner
+de boot em `src/app.js` (`"Frankenstein LMS rodando na porta..."`) preservado — é UX
+de inicialização, não log de runtime.
 
-***task-manager-api*** (Python/Flask) — *skill ainda não executada*
+## Checklist de Validação
 
-- Auditoria (Fase 2): não executada nesta sessão.
-- Refatoração (Fase 3): não executada.
-- Checklist de validação: não aplicável ainda.
-- Situação atual: existe apenas a **análise manual** da seção A. Diferencial deste
-  projeto: já possui uma camada `services/` (ignorada pelos controllers), o que muda o
-  tipo de refatoração esperada na Fase 3.
+### Fase 1 — Análise
+- [x] Linguagem detectada corretamente (JavaScript/Node.js)
+- [x] Framework detectado corretamente (Express)
+- [x] Domínio da aplicação descrito corretamente (checkout/pagamentos)
+- [x] Número de arquivos analisados condiz com a realidade (3 arquivos, ~180 linhas)
+
+### Fase 2 — Auditoria
+- [x] Relatório segue o template definido nos arquivos de referência
+- [x] Cada finding tem arquivo e linhas exatos
+- [x] Findings ordenados por severidade (CRITICAL → LOW)
+- [ ] Mínimo de 5 findings identificados *(apenas 2 — projeto pequeno, catálogo MVP cobre só 1 categoria; ≥5 exigiria os anti-patterns ainda não formalizados, ver seção "observações fora do catálogo" do relatório)*
+- [ ] Detecção de APIs deprecated incluída *(não implementada nesta versão do catálogo)*
+- [x] Skill pausa e pede confirmação antes da Fase 3
+
+### Fase 3 — Refatoração
+- [ ] Estrutura de diretórios segue padrão MVC *(fora de escopo: único achado é LOW e isolado)*
+- [ ] Configuração extraída para módulo de config *(fora de escopo do único anti-pattern do catálogo)*
+- [ ] Models criados para abstrair dados *(fora de escopo)*
+- [ ] Views/Routes separadas *(fora de escopo)*
+- [ ] Controllers concentram o fluxo da aplicação *(fora de escopo — `AppManager.js` continua God Class)*
+- [ ] Error handling centralizado *(fora de escopo)*
+- [x] Entry point claro (`src/app.js`)
+- [x] Aplicação inicia sem erros
+- [x] Endpoints originais respondem corretamente
+
+Formato de log emitido por `src/logger.js` (determinístico a partir da implementação:
+timestamp ISO + nível + nome do módulo):
+
+```
+2026-07-17T23:41:12.558Z INFO [AppManager]: Processando cartão 4111... na chave sk_test_...
+2026-07-17T23:41:12.560Z INFO [utils]: Salvando no cache: pedido_123
+```
+
+***task-manager-api*** (Python/Flask) — *processado pela skill*
+
+Stack detectada na Fase 1: Python + Flask 3.0.0, SQLAlchemy + SQLite, domínio gestão
+de tarefas, 16 arquivos (~1177 linhas), já possui camada `services/` (mas ignorada
+pelos controllers — ver seção A).
+
+Antes / depois da estrutura: não houve restruturação de diretórios (achados LOW
+isolados não a justificam). `app.py` ganhou `logging.basicConfig` central; `logger =
+logging.getLogger(__name__)` adicionado em `utils/helpers.py`,
+`services/notification_service.py`, `routes/task_routes.py` e `routes/user_routes.py`;
+os 11 `print()` de runtime (log de ações, envio de e-mail, CRUD de tasks/usuários)
+viraram `logger.info` / `logger.exception`. Banners de CLI em `seed.py` preservados
+(script standalone). Estrutura de arquivos inalterada.
+
+## Checklist de Validação
+
+### Fase 1 — Análise
+- [x] Linguagem detectada corretamente (Python)
+- [x] Framework detectado corretamente (Flask 3.0.0 + SQLAlchemy)
+- [x] Domínio da aplicação descrito corretamente (gestão de tarefas)
+- [x] Número de arquivos analisados condiz com a realidade (16 arquivos, ~1177 linhas)
+
+### Fase 2 — Auditoria
+- [x] Relatório segue o template definido nos arquivos de referência
+- [x] Cada finding tem arquivo e linhas exatos
+- [x] Findings ordenados por severidade (CRITICAL → LOW)
+- [x] Mínimo de 5 findings identificados (11)
+- [ ] Detecção de APIs deprecated incluída *(não implementada nesta versão do catálogo)*
+- [x] Skill pausa e pede confirmação antes da Fase 3
+
+### Fase 3 — Refatoração
+- [ ] Estrutura de diretórios segue padrão MVC *(já parcialmente organizado; camada `services/` existente não foi ligada aos controllers — fora de escopo do único anti-pattern do catálogo)*
+- [ ] Configuração extraída para módulo de config *(fora de escopo)*
+- [ ] Models criados para abstrair dados *(já existiam; não é objeto desta transformação)*
+- [ ] Views/Routes separadas *(já existiam; não é objeto desta transformação)*
+- [ ] Controllers concentram o fluxo da aplicação *(fora de escopo)*
+- [ ] Error handling centralizado *(fora de escopo)*
+- [x] Entry point claro (`app.py`)
+- [x] Aplicação inicia sem erros
+- [x] Endpoints originais respondem corretamente
+
+Log da aplicação rodando após a refatoração (Fase 3):
+
+```
+2026-07-17 ... INFO routes.user_routes: Usuário criado: 1 - Ana
+```
 
 **Observações sobre stacks diferentes**
 
-Ainda não aplicável: nesta sessão a skill só rodou em Python/Flask
-(`code-smells-project`). Executá-la no `ecommerce-api-legacy` (Node/Express) e no
-`task-manager-api` fecha as lacunas acima e valida o comportamento agnóstico na prática.
+A skill se comportou de forma agnóstica nas duas stacks testadas (Python/Flask e
+Node/Express):
+
+- A heurística de detecção de stack (Fase 1) funcionou sem ajuste manual nos 3
+  projetos, incluindo a leitura de `package.json` vs. `requirements.txt`.
+- A mesma transformação conceitual (`print()`/`console.log` → logging estruturado com
+  níveis) foi aplicada com implementações diferentes por ecossistema: módulo
+  `logging` nativo do Python vs. um logger mínimo escrito à mão em `logger.js`
+  (o projeto Node não tinha nenhuma dependência de logging instalada — optou-se por
+  não adicionar uma lib externa nova só para isso, mantendo o princípio de menor
+  alteração possível).
+- A exceção de "banner de CLI legítimo" do catálogo se mostrou necessária nas 3
+  stacks (bloco `__main__` do Flask, script `seed.py`, listener do Express) — sem
+  ela, o critério teria sinalizado falso-positivo em todas.
+- Nenhum dos 3 projetos exigiu reestruturação de diretórios nesta rodada, já que o
+  único anti-pattern confirmado é LOW e isolado — a regra de "adaptação ao contexto"
+  das guidelines evitou impor uma árvore MVC completa sem necessidade. Isso também
+  explica por que a checklist de Fase 3 acima tem vários itens de arquitetura MVC
+  não marcados: eles pertencem ao alvo final da skill, não ao escopo do catálogo
+  MVP atual.
 
 **D) Seção "Como Executar":**
 
