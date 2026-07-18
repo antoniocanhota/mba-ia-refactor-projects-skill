@@ -49,21 +49,154 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 
 **B) Seção "Construção da Skill":**
 
-- Decisões de design: como estruturou o SKILL.md e os arquivos de referência
-- Quais anti-patterns incluiu no catálogo e por quê
-- Como garantiu que a skill é agnóstica de tecnologia
-- Desafios encontrados e como resolveu
+> **Estado atual (MVP):** a skill foi construída de forma incremental. Esta versão
+> trata **1 anti-pattern LOW** (`print()` como logging) percorrendo as 3 fases
+> ponta-a-ponta, e foi projetada para crescer (novos anti-patterns entram nos
+> arquivos de referência sem alterar o fluxo). Ferramenta escolhida: **Claude Code**.
+
+**Decisões de design — SKILL.md e arquivos de referência**
+
+- `SKILL.md` curto (~130 linhas, bem abaixo do teto de ~300/500), atuando só como
+  **orquestrador** das 3 fases sequenciais (Análise → Auditoria → Refatoração). O
+  conhecimento de domínio fica em `references/`, lido **sob demanda** (progressive
+  disclosure), reduzindo tokens e ruído de contexto.
+- 5 arquivos de referência, um por área de conhecimento exigida pela spec:
+  `project-analysis.md` (heurísticas de detecção da Fase 1), `anti-patterns.md`
+  (catálogo com sinais + severidade), `report-template.md` (formato do relatório da
+  Fase 2), `architecture-guidelines.md` (regras do padrão MVC alvo) e
+  `refactoring-playbook.md` (transformações antes/depois da Fase 3).
+- `description` do front matter escrita como mecanismo de descoberta (o quê + quando
+  usar + como ajuda).
+- Regras operacionais no corpo: confirmação humana obrigatória entre Fase 2 e Fase 3,
+  sinais de detecção específicos e acionáveis, validação não-destrutiva na Fase 3.
+- Incremento posterior: a Fase 2 passou a **salvar o relatório de auditoria em `.md`**,
+  perguntando path e nome do arquivo ao usuário, antes da confirmação.
+
+**Anti-patterns no catálogo e por quê**
+
+- Hoje: **`print()` como mecanismo de logging (LOW)** — escolhido como primeiro caso
+  por ser simples, de detecção inequívoca (`grep 'print('`) e transformação segura
+  (troca por `logging` com níveis), permitindo validar o pipeline inteiro com baixo
+  risco. Serve de "esqueleto de crescimento".
+- `anti-patterns.md` e `refactoring-playbook.md` já trazem, em blocos-comentário, o
+  mapa dos incrementos previstos para atingir os mínimos da spec (≥8 anti-patterns,
+  ≥8 transformações, incluindo detecção de APIs deprecated): credenciais hardcoded,
+  SQL Injection, God Class, endpoint sem auth, regra de negócio no controller, estado
+  global mutável, N+1, try/except vazando erro, magic values, etc.
+
+**Como se garante que a skill é agnóstica de tecnologia**
+
+- As heurísticas e o catálogo descrevem **sinais**, não uma stack fixa: detecção de
+  linguagem por extensão + manifesto (Python, Node, Ruby, Go, Java, PHP...) e de
+  framework por dependências/imports.
+- Cada anti-pattern/transformação lista **equivalentes por stack** (ex: `print` /
+  `console.log` / `System.out.println` / `fmt.Println` / `puts`).
+- As guidelines de arquitetura instruem a **adaptar a nomenclatura de camadas** ao
+  ecossistema detectado.
+
+**Desafios encontrados e como resolvi**
+
+- **Validar sem sujar o fixture:** a Fase 3 foi testada de verdade (boot + endpoints)
+  e depois **revertida via git**, preservando o `code-smells-project` no estado
+  original de entrada do desafio.
 
 **C) Seção "Resultados":**
 
-- Resumo dos relatórios de auditoria dos 3 projetos (quantos findings por severidade em cada)
-- Comparação antes/depois da estrutura de cada projeto
-- Checklist de validação preenchido para cada projeto
-- Screenshots ou logs mostrando as aplicações rodando após refatoração
-- Observações sobre como a skill se comportou em stacks diferentes
+> Nesta sessão a skill foi executada **apenas no `code-smells-project`** (Python/Flask).
+> `ecommerce-api-legacy` (Node/Express) e `task-manager-api` (Python/Flask) têm, até
+> aqui, **somente a análise manual** da seção A — ainda não foram processados pela
+> skill. Os números abaixo refletem o **catálogo MVP (1 anti-pattern)**, e por isso
+> diferem — de propósito — da análise manual mais ampla da seção A.
+
+***code-smells-project*** (Python/Flask) — *processado pela skill*
+
+Stack detectada na Fase 1: Python + Flask 3.1.1 + flask-cors, SQLite (tabelas
+`produtos`, `usuarios`, `pedidos`, `itens_pedido`), domínio E-commerce, 4 arquivos
+(~780 linhas), arquitetura monolítica.
+
+Resumo do relatório de auditoria (Fase 2):
+
+| CRITICAL | HIGH | MEDIUM | LOW | Total |
+|---|---|---|---|---|
+| 0 | 0 | 0 | 1 | 1 |
+
+Único finding: `[LOW] print() como mecanismo de logging` em `controllers.py`
+(14 ocorrências) e `app.py:56` — banners de startup de CLI preservados.
+
+Antes / depois da estrutura: não houve restruturação de diretórios (o único achado
+LOW não a justifica). A mudança foi in-place: `import logging` + `logger` por módulo;
+`print(...)` → `logger.info / warning / exception`; `logging.basicConfig` central em
+`app.py`. Estrutura de arquivos inalterada (`app.py`, `controllers.py`, `models.py`,
+`database.py`).
+
+Checklist de validação:
+
+- [x] Aplicação inicializa sem erros (`python app.py` / runner em porta 5055)
+- [x] Endpoints respondem: `GET /health` → 200, `GET /produtos` → 200, `POST /produtos` → 201
+- [x] Zero ocorrências remanescentes do anti-pattern corrigido (só banners CLI)
+- [x] Fixture revertido ao estado original após o teste
+
+Log da aplicação rodando após a refatoração (Fase 3):
+
+```
+2026-... INFO werkzeug:  * Running on http://127.0.0.1:5055
+2026-... INFO werkzeug: 127.0.0.1 - - "GET /health HTTP/1.1" 200 -
+2026-... INFO controllers: Listando 10 produtos
+2026-... INFO werkzeug: 127.0.0.1 - - "GET /produtos HTTP/1.1" 200 -
+2026-... INFO controllers: Produto criado com ID: 11
+2026-... INFO werkzeug: 127.0.0.1 - - "POST /produtos HTTP/1.1" 201 -
+```
+
+Os `print()` viraram logging estruturado (timestamp + nível + logger), confirmando a
+transformação.
+
+***ecommerce-api-legacy*** (Node/Express) — *skill ainda não executada*
+
+- Auditoria (Fase 2): não executada nesta sessão.
+- Refatoração (Fase 3): não executada.
+- Checklist de validação: não aplicável ainda.
+- Situação atual: existe apenas a **análise manual** da seção A. Rodar a skill aqui é
+  o próximo passo para exercitar a natureza agnóstica numa stack Node/Express.
+
+***task-manager-api*** (Python/Flask) — *skill ainda não executada*
+
+- Auditoria (Fase 2): não executada nesta sessão.
+- Refatoração (Fase 3): não executada.
+- Checklist de validação: não aplicável ainda.
+- Situação atual: existe apenas a **análise manual** da seção A. Diferencial deste
+  projeto: já possui uma camada `services/` (ignorada pelos controllers), o que muda o
+  tipo de refatoração esperada na Fase 3.
+
+**Observações sobre stacks diferentes**
+
+Ainda não aplicável: nesta sessão a skill só rodou em Python/Flask
+(`code-smells-project`). Executá-la no `ecommerce-api-legacy` (Node/Express) e no
+`task-manager-api` fecha as lacunas acima e valida o comportamento agnóstico na prática.
 
 **D) Seção "Como Executar":**
 
-- Pré-requisitos (a ferramenta escolhida — Claude Code, Gemini CLI ou Codex — instalada e configurada)
-- Comandos para executar a skill em cada projeto
-- Como validar que a refatoração funcionou
+**Pré-requisitos**
+
+- **Claude Code** instalado e autenticado (ferramenta escolhida).
+- Runtime do projeto alvo para validar o boot na Fase 3:
+  - Python/Flask (`code-smells-project`, `task-manager-api`): Python 3 + `pip`.
+  - Node/Express (`ecommerce-api-legacy`): Node.js + `npm`.
+
+**Executar a skill (por projeto)**
+
+A skill vive em `code-smells-project/.claude/skills/refactor-arch/`. Entre na pasta do
+projeto e invoque o comando:
+
+```bash
+cd code-smells-project      # ou o projeto alvo
+claude "/refactor-arch"
+```
+
+A skill roda em ordem: Fase 1 (análise, imprime o resumo da stack) → Fase 2 (auditoria,
+gera o relatório, **salva em `.md` no path/nome que você informar** e pausa em
+`[y/n]`) → Fase 3, só após `y` (aplica as transformações e valida).
+
+**Validar que a refatoração funcionou**
+
+- Boot: `pip install -r requirements.txt && python app.py` (ou `npm install && npm start`).
+- Endpoints: `curl` nos principais (ex: `GET /health`, `GET /produtos`).
