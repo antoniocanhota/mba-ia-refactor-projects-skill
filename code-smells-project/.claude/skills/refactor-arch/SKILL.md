@@ -16,10 +16,12 @@ Skill de refatoração arquitetural em **3 fases sequenciais**: Análise → Aud
 Refatoração. Funciona em qualquer linguagem/framework. O `SKILL.md` orquestra o
 fluxo; o conhecimento de domínio vive em `references/` e é lido **sob demanda**.
 
-> Estado atual (MVP): o catálogo cobre **1 anti-pattern** (`print()` como logging,
-> LOW). A estrutura foi desenhada para crescer — novos anti-patterns entram em
-> `references/anti-patterns.md` e `references/refactoring-playbook.md` sem alterar
-> este fluxo.
+> Estado atual: o catálogo cobre **7 anti-patterns** — 2 CRITICAL (God Class;
+> dados sensíveis na resposta), 2 HIGH (regra de negócio no controller; ausência de
+> injeção de dependência / estado global mutável), 2 MEDIUM (duplicação de código;
+> validação de entrada ausente nas rotas) e 1 LOW (`print()` como logging). A estrutura
+> foi desenhada para crescer — novos anti-patterns entram em `references/anti-patterns.md`
+> e `references/refactoring-playbook.md` sem alterar este fluxo.
 
 ## Como executar
 

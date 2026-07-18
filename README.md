@@ -49,14 +49,15 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 
 **B) Seção "Construção da Skill":**
 
-> **Estado atual (MVP):** a skill foi construída de forma incremental. Esta versão
-> trata **1 anti-pattern LOW** (`print()` como logging) percorrendo as 3 fases
-> ponta-a-ponta, e foi projetada para crescer (novos anti-patterns entram nos
-> arquivos de referência sem alterar o fluxo). Ferramenta escolhida: **Claude Code**.
+> **Estado atual:** a skill foi construída de forma incremental. Esta versão trata
+> **7 anti-patterns cobrindo as 4 severidades** — 2 CRITICAL, 2 HIGH, 2 MEDIUM e
+> 1 LOW — percorrendo as 3 fases ponta-a-ponta, e continua projetada para crescer
+> (novos anti-patterns entram nos arquivos de referência sem alterar o fluxo).
+> Ferramenta escolhida: **Claude Code**.
 
 **Decisões de design — SKILL.md e arquivos de referência**
 
-- `SKILL.md` curto (~130 linhas, bem abaixo do teto de ~300/500), atuando só como
+- `SKILL.md` curto (~133 linhas, bem abaixo do teto de ~300/500), atuando só como
   **orquestrador** das 3 fases sequenciais (Análise → Auditoria → Refatoração). O
   conhecimento de domínio fica em `references/`, lido **sob demanda** (progressive
   disclosure), reduzindo tokens e ruído de contexto.
@@ -74,19 +75,32 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 
 **Anti-patterns no catálogo e por quê**
 
-- Hoje: **`print()` como mecanismo de logging (LOW)** — escolhido como primeiro caso
-  por ser simples, de detecção inequívoca (`grep 'print('`) e transformação segura
-  (troca por `logging` com níveis), permitindo validar o pipeline inteiro com baixo
-  risco. Serve de "esqueleto de crescimento".
-- `refactoring-playbook.md` ainda traz, em bloco-comentário, o mapa das
-  transformações previstas para atingir os mínimos da spec (≥8 anti-patterns,
-  ≥8 transformações, incluindo detecção de APIs deprecated): credenciais hardcoded,
-  SQL Injection, God Class, endpoint sem auth, regra de negócio no controller, estado
-  global mutável, N+1, try/except vazando erro, magic values, etc. O bloco equivalente
-  foi removido de `anti-patterns.md` depois que execuções da skill passaram a tratar
-  esses rascunhos como catálogo formal, inflando relatórios de auditoria com achados
-  sem sinais de detecção definidos — o catálogo agora reflete só o que está de fato
-  implementado (1 anti-pattern LOW).
+O catálogo cobre **7 anti-patterns nas 4 severidades**, priorizando os que são
+recorrentes nos 3 projetos e mais relevantes para **MVC/SOLID**, e alinhados de forma
+estrita à escala de severidade da própria skill. Cada entrada de `anti-patterns.md` tem
+uma transformação antes/depois correspondente em `refactoring-playbook.md` (relação 1:1,
+casada pelo nome).
+
+| Severidade | Anti-pattern | Por quê entrou |
+|---|---|---|
+| CRITICAL | God Class / God Module | Violação total de SRP/MVC — casa literalmente com a definição de CRITICAL ("God Class contendo banco, lógicas e roteamento no mesmo arquivo") |
+| CRITICAL | Dados sensíveis serializados direto na resposta | Expõe credenciais/hashes (senha/`password`) por falta de fronteira Model↔View (DTO) — "expõe dados sensíveis" |
+| HIGH | Regra de negócio presa no controller | Violação de MVC/SRP mais recorrente dos 3 projetos; a camada `services/` às vezes existe mas é ignorada |
+| HIGH | Ausência de injeção de dependência / estado global mutável | Viola DIP: conexão no construtor/global e estado compartilhado entre requisições, impedindo teste isolado |
+| MEDIUM | Duplicação de código / lógica reimplementada | Viola DRY: validação copiada entre create/update e métodos de model já existentes reimplementados inline |
+| MEDIUM | Validação de entrada ausente nas rotas | Entrada usada sem checagem de tipo/formato vira 500 em vez de 400 — citado nominalmente na definição de MEDIUM |
+| LOW | `print()` como mecanismo de logging | Primeiro caso construído: detecção inequívoca (`grep 'print('`) e transformação segura (troca por logging com níveis); validou o pipeline inteiro com baixo risco |
+
+- **Critério de seleção e alinhamento à escala:** um candidato inicial de MEDIUM ("God
+  _function_ de inicialização" misturando conexão + schema + seed) foi descartado por ser,
+  na verdade, uma violação de separação de responsabilidades — conceito que a escala coloca
+  em CRITICAL (God Class), não em MEDIUM. Foi substituído por "validação de entrada ausente
+  nas rotas", que a definição de MEDIUM cita nominalmente. Isso mantém o catálogo coerente
+  com a própria taxonomia de severidade.
+- **Sem catálogo-fantasma:** o antigo bloco-comentário com transformações "previstas" foi
+  removido do `refactoring-playbook.md` agora que estão de fato implementadas — o catálogo
+  reflete só o que a skill realmente detecta e corrige, evitando inflar relatórios de
+  auditoria com achados sem sinais de detecção definidos.
 
 **Como se garante que a skill é agnóstica de tecnologia**
 
