@@ -78,11 +78,15 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
   por ser simples, de detecção inequívoca (`grep 'print('`) e transformação segura
   (troca por `logging` com níveis), permitindo validar o pipeline inteiro com baixo
   risco. Serve de "esqueleto de crescimento".
-- `anti-patterns.md` e `refactoring-playbook.md` já trazem, em blocos-comentário, o
-  mapa dos incrementos previstos para atingir os mínimos da spec (≥8 anti-patterns,
+- `refactoring-playbook.md` ainda traz, em bloco-comentário, o mapa das
+  transformações previstas para atingir os mínimos da spec (≥8 anti-patterns,
   ≥8 transformações, incluindo detecção de APIs deprecated): credenciais hardcoded,
   SQL Injection, God Class, endpoint sem auth, regra de negócio no controller, estado
-  global mutável, N+1, try/except vazando erro, magic values, etc.
+  global mutável, N+1, try/except vazando erro, magic values, etc. O bloco equivalente
+  foi removido de `anti-patterns.md` depois que execuções da skill passaram a tratar
+  esses rascunhos como catálogo formal, inflando relatórios de auditoria com achados
+  sem sinais de detecção definidos — o catálogo agora reflete só o que está de fato
+  implementado (1 anti-pattern LOW).
 
 **Como se garante que a skill é agnóstica de tecnologia**
 
