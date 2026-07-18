@@ -4,20 +4,6 @@ Cada entrada tem: **sinais de detecção** acionáveis (o que procurar no códig
 **severidade** e **impacto**. A Fase 2 cruza cada anti-pattern contra a codebase e
 registra ocorrências com `arquivo:linha`.
 
-## Escala de severidade
-
-- **CRITICAL** — falhas graves de arquitetura/segurança; impedem o funcionamento
-  correto, expõem dados sensíveis (credenciais hardcoded, SQL Injection) ou violam
-  totalmente a separação de responsabilidades (God Class).
-- **HIGH** — fortes violações de MVC/SOLID que dificultam muito manutenção e testes
-  (regra de negócio presa em controllers, acoplamento sem injeção de dependência,
-  estado global mutável).
-- **MEDIUM** — padronização, duplicação ou performance moderada (queries N+1, uso
-  inadequado de middlewares, validações ausentes).
-- **LOW** — legibilidade, nomenclatura ruim, magic numbers soltos.
-
----
-
 ## Catálogo
 
 <!-- Formato para novas entradas: replicar o bloco abaixo. Manter agrupado por severidade. -->
