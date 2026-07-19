@@ -153,7 +153,7 @@ casada pelo nome).
 **C) Seção "Resultados":**
 
 > A skill foi executada ponta-a-ponta (Fase 1 → Fase 2 → Fase 3) nos **3 projetos**.
-> `code-smells-project` já foi **reprocessado com o catálogo atual (7 anti-patterns,
+> `code-smells-project` foi **reprocessado com o catálogo atual (9 anti-patterns,
 > 4 severidades)** — ver detalhes abaixo. `ecommerce-api-legacy` e `task-manager-api`
 > ainda refletem a rodada anterior, feita com o **catálogo MVP (1 anti-pattern:
 > `print()`/`console.log` como logging, LOW)**; reprocessá-los com o catálogo atual
@@ -163,16 +163,19 @@ Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-
 
 | Projeto | CRITICAL | HIGH | MEDIUM | LOW | Total |
 |---|---|---|---|---|---|
-| code-smells-project | 8 | 5 | 6 | 2 | 21 |
+| code-smells-project | 5 | 3 | 4 | 3 | 15 |
 | ecommerce-api-legacy *(catálogo MVP, pendente reprocessamento)* | 0 | 0 | 0 | 2 | 2 |
 | task-manager-api *(catálogo MVP, pendente reprocessamento)* | 0 | 0 | 0 | 11 | 11 |
 
-`code-smells-project` foi auditado contra as 7 categorias do catálogo atual — os 21
-findings cobrem God Class, dados sensíveis serializados na resposta (incl. `secret_key`
-vazado no health check e `senha` vazada em `/usuarios`), credenciais hardcoded, regra de
-negócio no controller, ausência de injeção de dependência/estado global mutável,
-duplicação de código, validação de entrada ausente (incluindo SQL Injection em `login`)
-e `print()` como logging. `ecommerce-api-legacy` e `task-manager-api` ainda têm apenas
+`code-smells-project` foi auditado contra as 9 categorias do catálogo atual — os 15
+findings cobrem God Class (rotas administrativas embutidas em `app.py`, fora de
+controllers/models), dados sensíveis serializados na resposta (`senha` vazada em
+`/usuarios` e `secret_key`/`debug` vazados no health check), regra de negócio no
+controller (notificações de pedido), ausência de injeção de dependência/estado global
+mutável, duplicação de código, tratamento de erro espalhado/não centralizado, `print()`
+como logging e nomenclatura fraca de variáveis — a única categoria do catálogo sem
+ocorrência nesta base foi "uso de API deprecated". `ecommerce-api-legacy` e
+`task-manager-api` ainda têm apenas
 findings de uma categoria (`print()`/`console.log` como logging); cada relatório
 documenta, em seção separada e não pontuada, achados fora do catálogo MVP daquela
 rodada (SQL Injection, credenciais hardcoded, God Class, endpoints sem auth etc.) — hoje
@@ -184,24 +187,27 @@ Stack detectada na Fase 1: Python + Flask 3.1.1 + flask-cors, SQLite (tabelas
 `produtos`, `usuarios`, `pedidos`, `itens_pedido`), domínio E-commerce, 4 arquivos
 (~780 linhas), arquitetura monolítica.
 
-Antes / depois da estrutura: reestruturação completa em camadas — os achados
-CRITICAL/HIGH (God Class, dados sensíveis na resposta, SQL Injection, regra de negócio
-no controller, estado global mutável) justificam sair do monolito, conforme a regra de
-"adaptação ao contexto" das guidelines. Estrutura nova: `config/settings.py` (segredos
-e listas de valores válidos lidos de variáveis de ambiente, nunca hardcoded);
-`database/` (`connection.py`, `schema.py`, `seed.py` — conexão, schema e seed
-separados); `models/` (`produto_model.py`, `usuario_model.py`, `pedido_model.py`,
-todas as queries parametrizadas, sem concatenação de string); `services/`
-(`produto_service.py`, `usuario_service.py`, `pedido_service.py`, `admin_service.py` —
-validação, regra de negócio, hashing de senha via `werkzeug.security`, projeção
-pública do usuário sem `senha`); `controllers/` (um por domínio, só orquestram:
-validam shape, chamam o serviço, montam a resposta); `routes/routes.py` (registro de
-rotas). `app.py` virou composition root: monta conexão, models, services e controllers
-uma única vez e sobe o servidor. `senha` nunca mais sai em `/usuarios`; `login` usa
-query parametrizada + verificação de hash (elimina o SQL Injection de bypass de
-autenticação); `health_check` não expõe mais `secret_key`/`debug`; `/admin/reset-db` e
-`/admin/query` passam a exigir header `X-Admin-Token` (antes públicos) — nenhum
-endpoint foi removido, ver seção B.
+Antes / depois da estrutura: o projeto já chegava **parcialmente organizado**
+(`app.py` = rotas, `controllers.py` = handlers, `models.py` = acesso a dados,
+`database.py` = conexão/schema) — pela regra de "adaptação ao contexto" das
+guidelines, isso pede **correções pontuais**, não uma árvore nova de diretórios.
+Único arquivo novo: `services.py` (extrai a orquestração de notificação de pedido
+que estava presa no controller). Mudanças aplicadas dentro dos arquivos existentes:
+`senha` removida das queries/dicts de `get_todos_usuarios`/`get_usuario_por_id`
+(nunca mais sai em `/usuarios`); `health_check` não expõe mais `secret_key`/`debug`;
+`SECRET_KEY` passa a vir de `os.environ` (fallback só de dev); as rotas
+`/admin/reset-db` e `/admin/query` saíram de `app.py` para `controllers.py`/
+`models.py` e passaram a exigir o header `X-Admin-Key` (sem a env `ADMIN_API_KEY`
+configurada, respondem 503 em vez de ficarem abertas) — nenhum endpoint foi
+removido, ver seção B; `database.py` trocou o singleton global `db_connection` por
+conexão por requisição via `flask.g` (injeção de dependência, sem estado mutável
+compartilhado entre requisições); validação de produto e montagem de dict/pedido
+deduplicadas em helpers reaproveitados; todas as queries em `models.py` passaram a
+ser parametrizadas (eliminando a concatenação de string em SQL); os ~16
+`try/except` genéricos dos controllers foram removidos e centralizados em
+`@app.errorhandler(Exception)`/`@app.errorhandler(404)` em `app.py`; todo `print()`
+de runtime virou `logging`; `cursor2`/`cursor3` renomeados para `cursor_itens`/
+`cursor_produto`.
 
 ## Checklist de Validação
 
@@ -215,29 +221,34 @@ endpoint foi removido, ver seção B.
 - [x] Relatório segue o template definido nos arquivos de referência
 - [x] Cada finding tem arquivo e linhas exatos
 - [x] Findings ordenados por severidade (CRITICAL → LOW)
-- [x] Mínimo de 5 findings identificados (21)
-- [ ] Detecção de APIs deprecated incluída *(não implementada nesta versão do catálogo)*
+- [x] Mínimo de 5 findings identificados (15)
+- [x] Detecção de APIs deprecated incluída *(categoria verificada; nenhuma ocorrência encontrada nesta base — documentado no relatório)*
 - [x] Skill pausa e pede confirmação antes da Fase 3
 
 ### Fase 3 — Refatoração
-- [x] Estrutura de diretórios segue padrão MVC (`config/`, `database/`, `models/`, `services/`, `controllers/`, `routes/`, `app.py` como composition root)
-- [x] Configuração extraída para módulo de config (`config/settings.py`: `SECRET_KEY`, `ADMIN_TOKEN`, `DB_PATH`, listas de valores válidos lidos de env)
-- [x] Models criados para abstrair dados (queries parametrizadas em `models/`)
-- [x] Views/Routes separadas (`routes/routes.py`)
-- [x] Controllers concentram o fluxo da aplicação (`controllers/`: validam, delegam ao serviço, montam resposta)
-- [ ] Error handling centralizado *(cada controller trata sua própria exceção; não há um middleware/error handler único — fora do escopo desta rodada)*
+- [x] Estrutura de diretórios segue padrão MVC *(mantida a separação já existente — `app.py`/`controllers.py`/`models.py`/`database.py` — mais `services.py` novo; sem árvore de diretórios nova, por já estar "parcialmente organizado")*
+- [x] Configuração extraída para módulo de config *(sem hardcoded: `SECRET_KEY`/`ADMIN_API_KEY` lidos de `os.environ` no composition root `app.py`; não há um `config/` dedicado, por não ter sido exigido pelos achados)*
+- [x] Models criados para abstrair dados (já existiam; queries agora parametrizadas + helpers de serialização deduplicados)
+- [x] Views/Routes separadas (já existiam em `app.py`; rotas administrativas que antes tinham lógica embutida agora só registram e delegam)
+- [x] Controllers concentram o fluxo da aplicação (`controllers.py`: validam, delegam a `models`/`services`, montam a resposta)
+- [x] Error handling centralizado (`@app.errorhandler(Exception)` + `@app.errorhandler(404)` em `app.py`; `try/except` genéricos removidos dos controllers)
 - [x] Entry point claro (`app.py` como composition root)
 - [x] Aplicação inicia sem erros
-- [x] Endpoints originais respondem corretamente (todos, incluindo `/admin/query` — restaurado atrás de `X-Admin-Token` após correção do usuário, ver seção B)
+- [x] Endpoints originais respondem corretamente (todos os 19, incluindo `/admin/reset-db` e `/admin/query` — agora atrás de `X-Admin-Key`, nunca removidos)
 
 Log da aplicação rodando após a refatoração (Fase 3):
 
 ```
-2026-07-18 19:00:30 INFO services.usuario_service: Login bem-sucedido: admin@loja.com
-2026-07-18 19:00:31 WARNING services.usuario_service: Login falhou: admin@loja.com
-2026-07-18 19:00:32 INFO services.produto_service: Produto criado com ID: 11
-2026-07-18 19:00:33 INFO services.pedido_service: Notificação (email): pedido 1 criado para usuário 2
-2026-07-18 19:00:33 WARNING services.admin_service: Banco de dados resetado
+2026-07-18 22:35:09 INFO __main__: SERVIDOR INICIADO
+2026-07-18 22:35:09 INFO __main__: Rodando em http://localhost:5000
+2026-07-19 01:36:12 INFO controllers: Listando 10 produtos
+2026-07-19 01:36:12 INFO controllers: Login bem-sucedido: admin@loja.com
+2026-07-19 01:36:12 INFO controllers: Login falhou: admin@loja.com
+2026-07-19 01:36:12 INFO controllers: Produto criado com ID: 11
+2026-07-19 01:36:12 INFO services: Enviando e-mail: pedido 1 criado para usuario 1
+2026-07-19 01:36:12 INFO services: Enviando SMS: seu pedido foi recebido!
+2026-07-19 01:36:12 INFO services: Enviando push: novo pedido recebido pelo sistema
+2026-07-19 01:36:12 INFO services: Notificação: pedido 1 foi aprovado! Preparar envio.
 ```
 
 ***ecommerce-api-legacy*** (Node/Express) — *processado pela skill*
@@ -343,10 +354,12 @@ Node/Express):
 
 - A heurística de detecção de stack (Fase 1) funcionou sem ajuste manual nos 3
   projetos, incluindo a leitura de `package.json` vs. `requirements.txt`.
-- Com o catálogo atual (7 anti-patterns, 4 severidades), `code-smells-project` teve
-  achados CRITICAL/HIGH suficientes para justificar a reestruturação completa em
-  camadas — a regra de "adaptação ao contexto" das guidelines escalou a resposta ao
-  tamanho real dos problemas encontrados. `ecommerce-api-legacy` e `task-manager-api`
+- Com o catálogo atual (9 anti-patterns, 4 severidades), `code-smells-project` teve
+  achados CRITICAL/HIGH, mas a regra de "adaptação ao contexto" das guidelines não
+  pediu reestruturação em diretórios novos — o projeto já chegava com as camadas
+  separadas em arquivos (`app.py`/`controllers.py`/`models.py`/`database.py`), então
+  a Fase 3 aplicou correções pontuais dentro dessa estrutura (mais um `services.py`
+  novo) em vez de criar uma árvore MVC do zero. `ecommerce-api-legacy` e `task-manager-api`
   ainda não foram reprocessados com esse catálogo; os resultados documentados abaixo
   refletem a rodada anterior (catálogo MVP, só `print()`/`console.log`), onde a mesma
   regra corretamente não exigiu reestruturação (achado único, LOW, isolado) — a
@@ -389,12 +402,13 @@ gera o relatório, **salva em `.md` no path/nome que você informar** e pausa em
 
 - Boot: `pip install -r requirements.txt && python app.py` (ou `npm install && npm start`).
 - Endpoints: `curl` nos principais (ex: `GET /health`, `GET /produtos`).
-- `code-smells-project` (pós Fase 3): segredos e flags vêm de variáveis de ambiente
-  opcionais — `SECRET_KEY`, `ADMIN_TOKEN`, `DB_PATH` (todas com default de
-  desenvolvimento em `config/settings.py` se não setadas). Os endpoints
-  administrativos exigem o header `X-Admin-Token`:
+- `code-smells-project` (pós Fase 3): `SECRET_KEY` é opcional (fallback de dev em
+  `app.py` se não setada); `ADMIN_API_KEY` é **obrigatória** para os endpoints
+  administrativos — sem ela, `/admin/*` responde 503 em vez de ficar aberto. Os
+  endpoints administrativos exigem o header `X-Admin-Key`:
   ```bash
-  curl -X POST http://localhost:5000/admin/reset-db -H "X-Admin-Token: dev-admin-token-change-me"
-  curl -X POST http://localhost:5000/admin/query -H "X-Admin-Token: dev-admin-token-change-me" \
+  export ADMIN_API_KEY="troque-por-uma-chave-forte"
+  curl -X POST http://localhost:5000/admin/reset-db -H "X-Admin-Key: $ADMIN_API_KEY"
+  curl -X POST http://localhost:5000/admin/query -H "X-Admin-Key: $ADMIN_API_KEY" \
        -H "Content-Type: application/json" -d '{"sql":"SELECT * FROM produtos"}'
   ```
