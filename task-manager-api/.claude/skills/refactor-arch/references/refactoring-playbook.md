@@ -1,0 +1,452 @@
+# Referência — Playbook de Refatoração (Fase 3)
+
+Transformações concretas, uma por anti-pattern do catálogo, com exemplo
+**antes/depois**. A Fase 3 aplica a transformação correspondente a cada achado
+confirmado, preservando o comportamento observável.
+
+<!-- Formato para novas entradas: replicar o bloco abaixo, casando o nome com o do catálogo. -->
+
+---
+
+## print() → logging
+
+**Corrige:** `[LOW] print() como mecanismo de logging`.
+
+**Objetivo:** substituir `print()` de diagnóstico por logging estruturado com níveis,
+sem perder a informação registrada.
+
+**Passos:**
+1. Configurar logging uma vez, no ponto de entrada da aplicação.
+2. Em cada módulo, obter um logger: `logger = logging.getLogger(__name__)`.
+3. Trocar cada `print` de log pelo nível adequado: `logger.info` para eventos de
+   sucesso/fluxo, `logger.warning` para condições anômalas, `logger.error` (ou
+   `logger.exception` dentro de `except`) para falhas.
+4. Usar argumentos lazy (`%s`) em vez de concatenar strings.
+5. Preservar banners/UX de CLI legítimos, se houver (não são log de runtime).
+
+**Antes** (`controllers.py`):
+```python
+def criar_produto():
+    try:
+        ...
+        id = models.criar_produto(nome, descricao, preco, estoque, categoria)
+        print("Produto criado com ID: " + str(id))
+        return jsonify({"dados": {"id": id}, "sucesso": True}), 201
+    except Exception as e:
+        print("ERRO ao criar produto: " + str(e))
+        return jsonify({"erro": str(e)}), 500
+```
+
+**Depois** (`controllers.py`):
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+def criar_produto():
+    try:
+        ...
+        id = models.criar_produto(nome, descricao, preco, estoque, categoria)
+        logger.info("Produto criado com ID: %s", id)
+        return jsonify({"dados": {"id": id}, "sucesso": True}), 201
+    except Exception as e:
+        logger.exception("Erro ao criar produto")
+        return jsonify({"erro": str(e)}), 500
+```
+
+**Configuração central** (ponto de entrada, ex: `app.py`):
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+```
+
+**Equivalentes por stack:** Node → `console.log/error` para uma lib como `pino`/`winston`;
+Java → `System.out.println` para SLF4J/Logback; Go → `fmt.Println` para `log`/`slog`.
+
+**Validação:** `grep -n "print(" <arquivos>` não deve retornar chamadas de logging;
+a aplicação sobe e os endpoints seguem respondendo.
+
+---
+
+## God Class → separação em camadas
+
+**Corrige:** `[CRITICAL] God Class / God Module`.
+
+**Objetivo:** quebrar o arquivo/classe monolítico nas camadas da estrutura-alvo
+(`architecture-guidelines.md`), sem alterar o comportamento observável (mesmos endpoints,
+mesmas respostas). **Adapte ao contexto:** monolito → separar em camadas; achado isolado
+não justifica uma nova árvore de diretórios.
+
+**Passos:**
+1. Mapear cada responsabilidade da God Class: conexão, schema/seed, rotas, controller,
+   regra de negócio, acesso a dados.
+2. Extrair o acesso a dados para **models** (um módulo por domínio), com queries
+   parametrizadas.
+3. Extrair a regra de negócio para **serviços/use-cases**; deixar o **controller** só
+   orquestrando (validar → chamar serviço → montar resposta).
+4. Mover a definição de rotas para **views/routes**; mover conexão/schema/seed para
+   **config** + inicialização.
+5. Transformar o arquivo original num **composition root** (`app.py`/`index.js`) que monta
+   as camadas e sobe o servidor.
+
+**Antes** (`AppManager.js` — tudo numa classe):
+```js
+class AppManager {
+  constructor() {
+    this.db = new sqlite3.Database(":memory:");
+    this.db.run("CREATE TABLE users (...)");           // schema
+    this.app.post("/api/checkout", (req, res) => {      // rota + controller
+      const total = req.body.qty * 100 * 1.1;           // regra de negócio
+      this.db.run("INSERT INTO payments ...");          // acesso a dados
+    });
+  }
+}
+```
+
+**Depois** (camadas separadas):
+```js
+// models/paymentModel.js
+export function createPayment(db, order) { return db.run("INSERT INTO payments ...", order); }
+
+// services/checkoutService.js
+export function checkout(models, input) {
+  const total = models.pricing.totalFor(input);         // regra de negócio isolada
+  return models.payment.create(input.with(total));
+}
+
+// routes/checkout.js
+router.post("/api/checkout", (req, res) => res.json(checkoutService.checkout(models, req.body)));
+
+// app.js — composition root: monta db, models, services, routes e sobe o servidor
+```
+
+**Equivalentes por stack:** Java → separar `@Controller`/`@Service`/`@Repository`; Python →
+`controllers/`, `services/`, `models/`, `config/`; Go → pacotes `handler`, `service`, `store`.
+
+**Validação:** cada arquivo tem uma responsabilidade; a app sobe e os endpoints originais
+respondem igual; nenhum arquivo mistura schema + rota + SQL.
+
+---
+
+## DTO/serializer para a resposta
+
+**Corrige:** `[CRITICAL] Dados sensíveis serializados direto na resposta`.
+
+**Objetivo:** interpor uma fronteira Model↔View que expõe apenas campos públicos, nunca
+credenciais/hashes.
+
+**Passos:**
+1. Definir a **allowlist** de campos públicos da entidade (o que a API pode expor).
+2. Criar um serializer/DTO que projeta só esses campos (`public_dict()`), separado de qualquer
+   `to_dict()` interno que contenha senha/hash.
+3. Trocar as rotas para serializar via o DTO, nunca a entidade crua nem `SELECT *`.
+4. Garantir que campos `senha`/`password`/`token` nunca entrem na projeção pública.
+
+**Antes** (`models/user.py` + rota):
+```python
+class User:
+    def to_dict(self):
+        return {"id": self.id, "email": self.email, "password": self.password}  # vaza hash
+
+# rota
+return jsonify(user.to_dict())
+```
+
+**Depois:**
+```python
+class User:
+    PUBLIC_FIELDS = ("id", "email", "role")
+    def public_dict(self):
+        return {f: getattr(self, f) for f in self.PUBLIC_FIELDS}  # sem password
+
+# rota
+return jsonify(user.public_dict())
+```
+
+**Equivalentes por stack:** Node → função `toPublic(row)` / `pick(row, [...])`; Java → um
+`UserResponseDTO` em vez de serializar a entidade JPA; usar `@JsonIgnore` no campo sensível.
+
+**Validação:** `grep -rniE "senha|password|pass|token" <respostas/serializers>` não retorna
+campo sensível na saída pública; os endpoints seguem devolvendo os campos legítimos.
+
+---
+
+## Extrair regra para camada de serviço
+
+**Corrige:** `[HIGH] Regra de negócio presa no controller`.
+
+**Objetivo:** mover regra de negócio e orquestração para um serviço/use-case reutilizável e
+testável; o controller só valida entrada, delega e monta a resposta.
+
+**Passos:**
+1. Identificar no controller os trechos de regra de negócio (cálculos, decisões de domínio,
+   múltiplos passos) e persistência.
+2. Criar/usar um módulo de **serviço** que recebe os dados já validados e executa a regra,
+   chamando os models.
+3. Reduzir o controller a: validar shape da entrada → chamar o serviço → montar response.
+4. Se já existe uma camada `services/` órfã, **passar a usá-la** em vez de reimplementar.
+
+**Antes** (`controllers.py`):
+```python
+def criar_pedido():
+    ...  # validação inline
+    total = sum(i["preco"] * i["qtd"] for i in itens)      # regra de negócio
+    if total > 500: total *= 0.9                            # desconto no controller
+    id = db.execute("INSERT INTO pedidos ...")             # persistência
+    return jsonify({"id": id, "total": total})
+```
+
+**Depois:**
+```python
+# services/pedido_service.py
+def criar_pedido(models, itens):
+    total = calcular_total_com_desconto(itens)             # regra isolada e testável
+    return models.pedido.criar(itens, total)
+
+# controllers.py
+def criar_pedido():
+    dados = validar_pedido(request.json)                   # só orquestra
+    pedido = pedido_service.criar_pedido(models, dados)
+    return jsonify(pedido.public_dict()), 201
+```
+
+**Equivalentes por stack:** Node → extrair de `route` handler para `checkoutService`; Java →
+mover do `@Controller` para um `@Service`.
+
+**Validação:** controllers sem SQL/regra pesada; a regra de negócio tem teste unitário sem
+subir HTTP; endpoints respondem igual.
+
+---
+
+## Injeção de dependência / composition root
+
+**Corrige:** `[HIGH] Ausência de injeção de dependência / estado global mutável`.
+
+**Objetivo:** receber conexões/serviços por parâmetro (montados num composition root) e
+eliminar estado global mutável compartilhado entre requisições.
+
+**Passos:**
+1. Parar de instanciar a conexão no construtor / como global; passá-la como argumento.
+2. Montar as dependências uma vez no **composition root** (`app.py`/`index.js`) e injetá-las
+   nas camadas.
+3. Substituir estado global mutável (`globalCache`, `totalRevenue`) por estado com escopo de
+   requisição ou por um store injetado.
+4. Expor um seam para testes (poder passar um fake/mock da dependência).
+
+**Antes** (`AppManager.js` / `utils.js`):
+```js
+// utils.js
+export let globalCache = {};        // estado global mutável entre requisições
+export let totalRevenue = 0;
+
+class AppManager {
+  constructor() { this.db = new sqlite3.Database(":memory:"); }  // dependência acoplada
+}
+```
+
+**Depois:**
+```js
+// app.js — composition root
+const db = new sqlite3.Database(process.env.DB_URL);
+const manager = new AppManager({ db });            // injeção por parâmetro
+
+// AppManager.js
+class AppManager {
+  constructor({ db }) { this.db = db; }            // recebe, não instancia
+}
+// cache com escopo de request/serviço, não módulo global
+```
+
+**Equivalentes por stack:** Python → passar `conn`/repositórios ao serviço em vez de global
+`get_db()`; Java → `@Autowired`/constructor injection em vez de `static` mutável.
+
+**Validação:** nenhuma conexão instanciada em construtor/global; nenhum estado mutável
+exportado de módulo; as camadas aceitam um dublê nos testes.
+
+---
+
+## Extrair / reusar lógica duplicada
+
+**Corrige:** `[MEDIUM] Duplicação de código / lógica reimplementada`.
+
+**Objetivo:** ter uma única fonte de verdade para cada validação/regra, reusando o que já
+existe em vez de reimplementar.
+
+**Passos:**
+1. Localizar os blocos idênticos (validação copiada entre create/update; cálculo repetido em
+   N rotas) e os métodos/constantes já existentes mas não usados.
+2. Extrair a lógica duplicada para **uma** função reutilizável (ou passar a chamar o método
+   já pronto no model/helper).
+3. Substituir todas as cópias pela chamada única.
+4. Remover o código morto correlato (método definido e nunca usado depois de reintegrado).
+
+**Antes** (`routes/task_routes.py` — `is_overdue()` existe mas é ignorado):
+```python
+# repetido em 5 rotas:
+overdue = task.due_date is not None and task.due_date < datetime.now() and task.status != "done"
+```
+
+**Depois:**
+```python
+# models/task.py (já existia)
+def is_overdue(self): ...
+
+# nas rotas:
+overdue = task.is_overdue()   # fonte única
+```
+
+**Equivalentes por stack:** Node → extrair para `validators.js` reutilizado; Java → mover para
+um método de domínio/`@Service` único.
+
+**Validação:** a lógica aparece em um só lugar; métodos antes órfãos agora são usados; nenhum
+bloco duplicado remanescente.
+
+---
+
+## Substituir API deprecated pelo equivalente moderno
+
+**Corrige:** `[MEDIUM] Uso de API deprecated`.
+
+**Objetivo:** trocar cada chamada obsoleta pelo substituto atual recomendado pelo
+ecossistema, preservando o comportamento observável.
+
+**Passos:**
+1. Confirmar a versão da linguagem/framework/lib (Fase 1) e o substituto oficial da API
+   deprecated (changelog/docs de migração).
+2. Trocar a chamada pelo equivalente moderno, ajustando assinatura/semântica quando diferir
+   (ex: fuso em `datetime`, argumentos de `Buffer`).
+3. Se a origem for uma **dependência** deprecated inteira, migrar para a mantida (ou para o
+   recurso nativo que a substituiu) e atualizar o manifesto.
+4. Rodar boot/testes e confirmar que nenhum `DeprecationWarning` remanesce para o símbolo.
+
+**Antes** (Python):
+```python
+from datetime import datetime
+created_at = datetime.utcnow()          # DeprecationWarning (3.12+)
+```
+
+**Depois:**
+```python
+from datetime import datetime, UTC
+created_at = datetime.now(UTC)          # timezone-aware, sem warning
+```
+
+**Antes** (Node/Express):
+```js
+const bodyParser = require("body-parser");
+app.use(bodyParser.json());             // body-parser avulso, deprecated
+const buf = new Buffer(data);           // construtor deprecated
+```
+
+**Depois:**
+```js
+app.use(express.json());                // parser nativo do Express
+const buf = Buffer.from(data);          // API atual
+```
+
+**Equivalentes por stack:** Java → substituir `@Deprecated` (ex: `new Date(...)` →
+`java.time`); Go → API marcada `// Deprecated:` pelo equivalente do pacote; qualquer stack →
+seguir o guia de migração oficial da versão.
+
+**Validação:** boot/testes sem `DeprecationWarning` para os símbolos corrigidos; endpoints
+respondem igual; manifesto sem dependências deprecated remanescentes.
+
+---
+
+## Error handler centralizado / middleware
+
+**Corrige:** `[MEDIUM] Tratamento de erro espalhado / não centralizado`.
+
+**Objetivo:** concentrar o tratamento de erro num ponto único (middleware/handler global),
+removendo o `try/except` genérico repetido e o vazamento de `str(e)` ao cliente.
+
+**Passos:**
+1. Registrar um **error handler global** no ponto de entrada (composition root).
+2. Remover os `try/except Exception`/`catch (e)` genéricos dos handlers — deixar a exceção
+   propagar para o handler central. Manter só os `except` específicos que **recuperam** o
+   fluxo (ex: `except ValueError` → 400).
+3. No handler central: **logar** a exceção (com stack, via logging) e devolver ao cliente uma
+   resposta genérica e estável (ex: `{"erro": "internal error"}` + 500), **sem** `str(e)`.
+4. Padronizar o formato das respostas de erro em um só lugar.
+
+**Antes** (`controllers.py` — repetido em todo handler):
+```python
+def criar_produto():
+    try:
+        ...
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500   # vaza detalhe interno; boilerplate repetido
+```
+
+**Depois** (`middlewares/error_handler.py` + registro no entry point):
+```python
+# middlewares/error_handler.py
+import logging
+logger = logging.getLogger(__name__)
+
+def register_error_handlers(app):
+    @app.errorhandler(Exception)
+    def handle_unexpected(e):
+        logger.exception("Erro não tratado")            # detalhe fica no log, não na resposta
+        return jsonify({"erro": "internal error"}), 500
+
+# app.py (composition root)
+register_error_handlers(app)
+
+# controllers.py — sem try/except genérico; só o específico que recupera:
+def criar_produto():
+    ...                                                  # exceções inesperadas sobem ao handler
+```
+
+**Equivalentes por stack:** Express → middleware `app.use((err, req, res, next) => {...})`
+registrado por último; Java/Spring → `@ControllerAdvice` + `@ExceptionHandler`.
+
+**Validação:** um só ponto de tratamento de erro; nenhum `str(e)`/stack na resposta ao
+cliente; endpoints seguem respondendo, e erros inesperados retornam resposta genérica
+padronizada (com o detalhe no log).
+
+---
+
+## Renomear para nomes intencionais
+
+**Corrige:** `[LOW] Nomenclatura fraca de variáveis`.
+
+**Objetivo:** substituir identificadores crus/numéricos por nomes que revelam o papel do
+valor, sem alterar comportamento (renomeação pura).
+
+**Passos:**
+1. Para cada variável mal nomeada, identificar o **papel** que ela cumpre no escopo
+   (o que contém / para que serve).
+2. Renomear para um nome descritivo desse papel; preferir nomear o papel a numerar
+   (`cursor2` → `cursor_itens`, não `cursor_b`).
+3. Renomear consistentemente todas as referências (usar rename do editor/IDE quando houver,
+   para evitar troca parcial).
+4. Preservar convenções idiomáticas legítimas (`i`/`j` de loop, `e` de exceção, `_` de
+   descarte) — não renomear o que já é claro pelo contexto.
+
+**Antes** (`models.py`):
+```python
+cursor2 = conn.cursor()
+cursor2.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (pid,))
+cursor3 = conn.cursor()
+cursor3.execute("SELECT * FROM produtos WHERE id = ?", (item["produto_id"],))
+```
+
+**Depois:**
+```python
+cursor_itens = conn.cursor()
+cursor_itens.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (pid,))
+cursor_produto = conn.cursor()
+cursor_produto.execute("SELECT * FROM produtos WHERE id = ?", (item["produto_id"],))
+```
+
+**Equivalentes por stack:** vale para qualquer linguagem — `u`/`e`/`p`/`cc` (Node) →
+`user`/`email`/`password`/`cardNumber`; `obj1`/`obj2` (Java) → nomes do domínio.
+
+**Validação:** nenhum identificador de 1 letra fora de escopo trivial nem sufixo numérico
+de desambiguação nos trechos tocados; a aplicação sobe e se comporta igual (renomeação não
+muda semântica).
