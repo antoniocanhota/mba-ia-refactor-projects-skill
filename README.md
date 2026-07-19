@@ -152,12 +152,11 @@ casada pelo nome).
 
 **C) Seção "Resultados":**
 
-> A skill foi executada ponta-a-ponta (Fase 1 → Fase 2 → Fase 3) nos **3 projetos**.
-> `code-smells-project` e `ecommerce-api-legacy` foram **reprocessados com o catálogo
-> atual (9 anti-patterns, 4 severidades)** — ver detalhes abaixo. `task-manager-api`
-> ainda reflete a rodada anterior, feita com o **catálogo MVP (1 anti-pattern:
-> `print()`/`console.log` como logging, LOW)**; reprocessá-lo com o catálogo atual
-> fica como próximo passo.
+> A skill foi executada ponta-a-ponta (Fase 1 → Fase 2 → Fase 3) nos **3 projetos**,
+> todos já **reprocessados com o catálogo atual (9 anti-patterns, 4 severidades)** —
+> ver detalhes abaixo. `task-manager-api` foi o último a ser reprocessado: a rodada
+> anterior (catálogo MVP, 1 anti-pattern: `print()`/`console.log` como logging) foi
+> substituída por uma auditoria completa contra as 9 categorias.
 
 Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-{1,2,3}.md`):
 
@@ -165,7 +164,7 @@ Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-
 |---|---|---|---|---|---|
 | code-smells-project | 5 | 3 | 4 | 3 | 15 |
 | ecommerce-api-legacy | 1 | 4 | 3 | 3 | 11 |
-| task-manager-api *(catálogo MVP, pendente reprocessamento)* | 0 | 0 | 0 | 11 | 11 |
+| task-manager-api | 1 | 4 | 7 | 2 | 14 |
 
 `code-smells-project` foi auditado contra as 9 categorias do catálogo atual — os 15
 findings cobrem God Class (rotas administrativas embutidas em `app.py`, fora de
@@ -185,11 +184,21 @@ relatório financeiro), `print()` como logging (um deles vazando dado de cartão
 chave do gateway de pagamento) e nomenclatura fraca de variáveis — as categorias sem
 ocorrência nesta base foram "dados sensíveis serializados direto na resposta" (nenhum
 endpoint devolve a coluna `pass`) e "uso de API deprecated" (dependências e APIs usadas
-já são as atuais). `task-manager-api` ainda tem apenas findings de uma categoria
-(`print()`/`console.log` como logging); seu relatório documenta, em seção separada e
-não pontuada, achados fora do catálogo MVP daquela rodada (God Class, endpoints sem
-auth etc.) — hoje já cobertos pelo catálogo atual, mas ainda não auditados formalmente
-nesse projeto.
+já são as atuais). `task-manager-api` foi auditado contra as 9 categorias — os 14
+findings cobrem dados sensíveis serializados na resposta (hash de senha vazado em
+`User.to_dict()` e devolvido por 4 endpoints, incluindo o login), regra de negócio
+presa no controller (validação e agregação de relatório dentro das rotas, com a
+camada `services/` órfã — nunca instanciada por nenhuma rota), ausência de injeção de
+dependência (credenciais SMTP hardcoded no construtor de `NotificationService`),
+duplicação de código (cálculo de "atrasado" reimplementado 5 vezes ignorando
+`Task.is_overdue()`; validação de status/prioridade e de e-mail reimplementadas
+ignorando helpers já existentes e nunca chamados), uso de API deprecated
+(`datetime.utcnow()` e `Query.get(id)`, API legacy do SQLAlchemy 2.x), tratamento de
+erro espalhado (13 blocos `try/except` genéricos, sem `@app.errorhandler`), `print()`
+como logging e nomenclatura fraca (`p1`..`p5`, variáveis de uma letra para entidades
+de domínio) — a única categoria do catálogo sem ocorrência nesta base foi "God Class",
+já que o projeto chegava com `models/`/`routes/`/`services/`/`utils/` separados em
+arquivos.
 
 ***code-smells-project*** (Python/Flask) — *processado pela skill*
 
@@ -328,49 +337,76 @@ Log da aplicação rodando após a refatoração (Fase 3):
 
 ***task-manager-api*** (Python/Flask) — *processado pela skill*
 
-Stack detectada na Fase 1: Python + Flask 3.0.0, SQLAlchemy + SQLite, domínio gestão
-de tarefas, 16 arquivos (~1177 linhas), já possui camada `services/` (mas ignorada
-pelos controllers — ver seção A).
+Stack detectada na Fase 1: Python 3 + Flask 3.0.0 (Flask-SQLAlchemy 3.1.1,
+Flask-CORS 4.0.0), SQLite via SQLAlchemy, domínio gestão de tarefas
+(tasks/users/categories), 14 arquivos (~1059 linhas), já possui camada `services/`
+(mas ignorada pelos controllers — ver seção A).
 
-Antes / depois da estrutura: não houve restruturação de diretórios (achados LOW
-isolados não a justificam). `app.py` ganhou `logging.basicConfig` central; `logger =
-logging.getLogger(__name__)` adicionado em `utils/helpers.py`,
-`services/notification_service.py`, `routes/task_routes.py` e `routes/user_routes.py`;
-os 11 `print()` de runtime (log de ações, envio de e-mail, CRUD de tasks/usuários)
-viraram `logger.info` / `logger.exception`. Banners de CLI em `seed.py` preservados
-(script standalone). Estrutura de arquivos inalterada.
+Antes / depois da estrutura: o projeto já chegava **parcialmente organizado**
+(`models/`, `routes/`, `services/`, `utils/` em pastas separadas), então — pela regra
+de "adaptação ao contexto" das guidelines — a Fase 3 aplicou **correções pontuais
+dentro dos arquivos existentes**, sem criar uma árvore de diretórios nova. Mudanças
+aplicadas: `User.to_dict()` deixou de incluir `password` (hash de senha migrado de
+MD5 para `werkzeug.security` com `pbkdf2:sha256` — o algoritmo padrão do Werkzeug,
+`scrypt`, não estava disponível no `hashlib` do ambiente de teste, um bug real só
+descoberto ao validar o boot de verdade); `Task.is_overdue()` passou a ser
+reaproveitado por todas as rotas no lugar do cálculo de "atrasado" reimplementado 5
+vezes; `create_task`/`update_task` passaram a usar `utils.helpers.process_task_data`
+(já existente, nunca chamado) como fonte única de validação; `create_user`/
+`update_user` passaram a usar `utils.helpers.validate_email` pelo mesmo motivo;
+`Task.validate_status`/`validate_priority` (código morto, redundante com
+`process_task_data`) foram removidos; `Model.query.get(id)` (API legacy do
+SQLAlchemy) virou `db.session.get(Model, id)` em toda a base; `datetime.utcnow()`
+(deprecated) virou um helper `utcnow()` equivalente e não-deprecated, usado em
+`models/`, `routes/`, `services/` e `seed.py`; `NotificationService` passou a
+receber as credenciais SMTP por injeção (parâmetro/env var) em vez de hardcoded no
+construtor — o serviço continua órfão (nenhuma rota o instancia), decisão registrada
+no relatório para o usuário avaliar, sem alterar comportamento observável; `app.py`
+ganhou `logging.basicConfig` central e `@app.errorhandler(Exception)` (com
+passthrough de `HTTPException`, preservando 404/405 nativos do Flask) — os ~13
+`try/except` genéricos das rotas de escrita foram removidos, mantendo só o `except`
+específico e legítimo de `send_email` (recupera de falha de SMTP); `SECRET_KEY`
+passou a vir de `os.environ` via `load_dotenv()` (dependência `python-dotenv`, antes
+listada no `requirements.txt` mas nunca usada); `print()` de runtime virou
+`logging`; `p1`..`p5` em `reports/summary` renomeados para
+`critical_count`/.../`minimal_count`; variáveis de laço `t`/`u`/`c` renomeadas para
+`task`/`user`/`category`. Nenhum endpoint foi removido — inclusive o "token" fake de
+login (`fake-jwt-token-<id>`) foi mantido, por não constar no relatório de auditoria
+como achado do catálogo atual.
 
 ## Checklist de Validação
 
 ### Fase 1 — Análise
 - [x] Linguagem detectada corretamente (Python)
-- [x] Framework detectado corretamente (Flask 3.0.0 + SQLAlchemy)
+- [x] Framework detectado corretamente (Flask 3.0.0 + Flask-SQLAlchemy)
 - [x] Domínio da aplicação descrito corretamente (gestão de tarefas)
-- [x] Número de arquivos analisados condiz com a realidade (16 arquivos, ~1177 linhas)
+- [x] Número de arquivos analisados condiz com a realidade (14 arquivos, ~1059 linhas)
 
 ### Fase 2 — Auditoria
 - [x] Relatório segue o template definido nos arquivos de referência
 - [x] Cada finding tem arquivo e linhas exatos
 - [x] Findings ordenados por severidade (CRITICAL → LOW)
-- [x] Mínimo de 5 findings identificados (11)
-- [ ] Detecção de APIs deprecated incluída *(não implementada nesta versão do catálogo)*
+- [x] Mínimo de 5 findings identificados (14)
+- [x] Detecção de APIs deprecated incluída (`datetime.utcnow()` e `Query.get(id)`, legacy do SQLAlchemy)
 - [x] Skill pausa e pede confirmação antes da Fase 3
 
 ### Fase 3 — Refatoração
-- [ ] Estrutura de diretórios segue padrão MVC *(já parcialmente organizado; camada `services/` existente não foi ligada aos controllers — fora de escopo do único anti-pattern do catálogo)*
-- [ ] Configuração extraída para módulo de config *(fora de escopo)*
-- [ ] Models criados para abstrair dados *(já existiam; não é objeto desta transformação)*
-- [ ] Views/Routes separadas *(já existiam; não é objeto desta transformação)*
-- [ ] Controllers concentram o fluxo da aplicação *(fora de escopo)*
-- [ ] Error handling centralizado *(fora de escopo)*
-- [x] Entry point claro (`app.py`)
+- [x] Estrutura de diretórios segue padrão MVC *(mantida a separação já existente — `models/`/`routes/`/`services/`/`utils/` — sem árvore nova, por já estar "parcialmente organizado")*
+- [x] Configuração extraída para módulo de config *(sem hardcoded: `SECRET_KEY` e credenciais SMTP lidas de `os.environ`/`load_dotenv()`; sem um `config/` dedicado, por não ter sido exigido pelos achados)*
+- [x] Models criados para abstrair dados (já existiam; `to_dict()` do `User` corrigido para não vazar `password`; `validate_status`/`validate_priority` mortos removidos)
+- [x] Views/Routes separadas (já existiam; sem mudança estrutural)
+- [x] Controllers concentram o fluxo da aplicação *(validação/regra de negócio consolidada reaproveitando `process_task_data`/`validate_email`/`Task.is_overdue()` já existentes, em vez da reimplementação duplicada; a agregação de `reports/summary`/`reports/user/<id>` permanece nos controllers, sem extração para um módulo `services/` dedicado — correção pontual, não a reestruturação completa que um monolito exigiria)*
+- [x] Error handling centralizado (`@app.errorhandler(Exception)` em `app.py`, com passthrough de `HTTPException`; `try/except` genéricos removidos das rotas de escrita)
+- [x] Entry point claro (`app.py` como composition root)
 - [x] Aplicação inicia sem erros
-- [x] Endpoints originais respondem corretamente
+- [x] Endpoints originais respondem corretamente (todos os 23 endpoints testados manualmente, incluindo `/login`, `/tasks/search`, `/tasks/stats`, `/reports/summary`)
 
 Log da aplicação rodando após a refatoração (Fase 3):
 
 ```
-2026-07-17 ... INFO routes.user_routes: Usuário criado: 1 - Ana
+2026-07-19 01:21:10,483 INFO routes.user_routes: Usuário criado: 4 - Ana
+2026-07-19 01:21:10,547 INFO routes.task_routes: Task criada: 11 - Escrever testes
+2026-07-19 01:21:10,576 INFO routes.task_routes: Task atualizada: 1
 ```
 
 **Observações sobre stacks diferentes**
@@ -381,21 +417,19 @@ Node/Express):
 - A heurística de detecção de stack (Fase 1) funcionou sem ajuste manual nos 3
   projetos, incluindo a leitura de `package.json` vs. `requirements.txt`.
 - Com o catálogo atual (9 anti-patterns, 4 severidades), a regra de "adaptação ao
-  contexto" das guidelines levou a graus de restruturação bem diferentes nos dois
-  projetos reprocessados. `code-smells-project` teve achados CRITICAL/HIGH, mas já
-  chegava com as camadas separadas em arquivos (`app.py`/`controllers.py`/
-  `models.py`/`database.py`) — a Fase 3 aplicou correções pontuais dentro dessa
-  estrutura (mais um `services.py` novo) em vez de criar uma árvore MVC do zero.
-  `ecommerce-api-legacy`, ao contrário, era um monolito de fato (God Class
-  `AppManager.js` concentrando tudo) — o mesmo achado CRITICAL levou, dessa vez, à
-  restruturação completa em camadas (`config/`, `db/`, `models/`, `services/`,
-  `controllers/`, `routes/`, `middlewares/`), confirmando que a regra reage ao
-  estado real do código, não a um molde fixo. `task-manager-api` ainda não foi
-  reprocessado com esse catálogo; os resultados documentados abaixo refletem a
-  rodada anterior (catálogo MVP, só `print()`/`console.log`), onde a mesma regra
-  corretamente não exigiu reestruturação (achado único, LOW, isolado) — a checklist
-  de Fase 3 desse projeto continua com os itens de arquitetura MVC não marcados por
-  esse motivo, não por limitação da skill.
+  contexto" das guidelines levou a graus de restruturação bem diferentes conforme o
+  estado real de cada projeto. `code-smells-project` e `task-manager-api` tiveram
+  achados que vão de CRITICAL/HIGH a LOW, mas os dois já chegavam com as camadas
+  separadas em arquivos/pastas (`app.py`/`controllers.py`/`models.py`/`database.py`
+  no primeiro; `models/`/`routes/`/`services/`/`utils/` no segundo) — a Fase 3
+  aplicou correções pontuais dentro dessa estrutura (um `services.py` novo no
+  primeiro; reaproveitamento de helpers/métodos já existentes e nunca chamados no
+  segundo) em vez de criar uma árvore MVC do zero. `ecommerce-api-legacy`, ao
+  contrário, era um monolito de fato (God Class `AppManager.js` concentrando tudo) —
+  o mesmo achado CRITICAL levou, dessa vez, à restruturação completa em camadas
+  (`config/`, `db/`, `models/`, `services/`, `controllers/`, `routes/`,
+  `middlewares/`), confirmando que a regra reage ao estado real do código, não a um
+  molde fixo.
 - A mesma transformação conceitual (`print()`/`console.log` → logging estruturado com
   níveis) foi aplicada com implementações diferentes por ecossistema: módulo
   `logging` nativo do Python vs. um logger mínimo escrito à mão em `logger.js`
@@ -453,4 +487,18 @@ gera o relatório, **salva em `.md` no path/nome que você informar** e pausa em
        -d '{"usr":"Guilherme","eml":"gui@fullcycle.com.br","pwd":"senhaforte","c_id":2,"card":"4111222233334444"}'
   curl http://localhost:3000/api/admin/financial-report
   curl -X DELETE http://localhost:3000/api/users/1
+  ```
+- `task-manager-api` (pós Fase 3): sobe sem nenhuma variável de ambiente obrigatória —
+  `SECRET_KEY` e as credenciais SMTP de `NotificationService` (usadas só se o serviço
+  for instanciado manualmente; nenhuma rota o chama) têm fallback de dev via
+  `os.environ`/`load_dotenv()`. Rode `python seed.py` antes do primeiro boot para
+  popular usuários/categorias/tasks de exemplo (senhas agora com hash
+  `pbkdf2:sha256`, não mais MD5). A resposta de `/login`/`/users/*` não inclui mais o
+  campo `password` — era o achado CRITICAL corrigido. Endpoints principais:
+  ```bash
+  python seed.py
+  curl -X POST http://localhost:5000/login -H "Content-Type: application/json" \
+       -d '{"email":"joao@email.com","password":"1234"}'
+  curl http://localhost:5000/tasks
+  curl http://localhost:5000/reports/summary
   ```
