@@ -346,6 +346,56 @@ tratamento no caminho da requisição; entrada válida segue funcionando.
 
 ---
 
+## Substituir API deprecated pelo equivalente moderno
+
+**Corrige:** `[MEDIUM] Uso de API deprecated`.
+
+**Objetivo:** trocar cada chamada obsoleta pelo substituto atual recomendado pelo
+ecossistema, preservando o comportamento observável.
+
+**Passos:**
+1. Confirmar a versão da linguagem/framework/lib (Fase 1) e o substituto oficial da API
+   deprecated (changelog/docs de migração).
+2. Trocar a chamada pelo equivalente moderno, ajustando assinatura/semântica quando diferir
+   (ex: fuso em `datetime`, argumentos de `Buffer`).
+3. Se a origem for uma **dependência** deprecated inteira, migrar para a mantida (ou para o
+   recurso nativo que a substituiu) e atualizar o manifesto.
+4. Rodar boot/testes e confirmar que nenhum `DeprecationWarning` remanesce para o símbolo.
+
+**Antes** (Python):
+```python
+from datetime import datetime
+created_at = datetime.utcnow()          # DeprecationWarning (3.12+)
+```
+
+**Depois:**
+```python
+from datetime import datetime, UTC
+created_at = datetime.now(UTC)          # timezone-aware, sem warning
+```
+
+**Antes** (Node/Express):
+```js
+const bodyParser = require("body-parser");
+app.use(bodyParser.json());             // body-parser avulso, deprecated
+const buf = new Buffer(data);           // construtor deprecated
+```
+
+**Depois:**
+```js
+app.use(express.json());                // parser nativo do Express
+const buf = Buffer.from(data);          // API atual
+```
+
+**Equivalentes por stack:** Java → substituir `@Deprecated` (ex: `new Date(...)` →
+`java.time`); Go → API marcada `// Deprecated:` pelo equivalente do pacote; qualquer stack →
+seguir o guia de migração oficial da versão.
+
+**Validação:** boot/testes sem `DeprecationWarning` para os símbolos corrigidos; endpoints
+respondem igual; manifesto sem dependências deprecated remanescentes.
+
+---
+
 ## Renomear para nomes intencionais
 
 **Corrige:** `[LOW] Nomenclatura fraca de variáveis`.

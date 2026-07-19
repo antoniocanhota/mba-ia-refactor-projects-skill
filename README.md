@@ -50,7 +50,7 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 **B) Seção "Construção da Skill":**
 
 > **Estado atual:** a skill foi construída de forma incremental. Esta versão trata
-> **8 anti-patterns cobrindo as 4 severidades** — 2 CRITICAL, 2 HIGH, 2 MEDIUM e
+> **9 anti-patterns cobrindo as 4 severidades** — 2 CRITICAL, 2 HIGH, 3 MEDIUM e
 > 2 LOW — percorrendo as 3 fases ponta-a-ponta, e continua projetada para crescer
 > (novos anti-patterns entram nos arquivos de referência sem alterar o fluxo).
 > Ferramenta escolhida: **Claude Code**.
@@ -75,7 +75,7 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 
 **Anti-patterns no catálogo e por quê**
 
-O catálogo cobre **8 anti-patterns nas 4 severidades**, priorizando os que são
+O catálogo cobre **9 anti-patterns nas 4 severidades**, priorizando os que são
 recorrentes nos 3 projetos e mais relevantes para **MVC/SOLID**, e alinhados de forma
 estrita à escala de severidade da própria skill. Cada entrada de `anti-patterns.md` tem
 uma transformação antes/depois correspondente em `refactoring-playbook.md` (relação 1:1,
@@ -89,6 +89,7 @@ casada pelo nome).
 | HIGH | Ausência de injeção de dependência / estado global mutável | Viola DIP: conexão no construtor/global e estado compartilhado entre requisições, impedindo teste isolado |
 | MEDIUM | Duplicação de código / lógica reimplementada | Viola DRY: validação copiada entre create/update e métodos de model já existentes reimplementados inline |
 | MEDIUM | Validação de entrada ausente nas rotas | Entrada usada sem checagem de tipo/formato vira 500 em vez de 400 — citado nominalmente na definição de MEDIUM |
+| MEDIUM | Uso de API deprecated | Requisito obrigatório do enunciado ("detecção de APIs deprecated + recomendar o equivalente moderno"); usa a versão detectada na Fase 1 para cruzar cada símbolo obsoleto contra seu substituto moderno |
 | LOW | `print()` como mecanismo de logging | Primeiro caso construído: detecção inequívoca (`grep 'print('`) e transformação segura (troca por logging com níveis); validou o pipeline inteiro com baixo risco |
 | LOW | Nomenclatura fraca de variáveis | Casa literalmente com a definição de LOW ("nomenclatura de variáveis ruins"); recorrente em 2 projetos (`cursor2`/`cursor3`, `u`/`e`/`p`/`cc`); 100% agnóstico e de transformação segura (renomeação pura) |
 
@@ -102,6 +103,16 @@ casada pelo nome).
   removido do `refactoring-playbook.md` agora que estão de fato implementadas — o catálogo
   reflete só o que a skill realmente detecta e corrige, evitando inflar relatórios de
   auditoria com achados sem sinais de detecção definidos.
+- **Detecção de APIs deprecated (requisito obrigatório) como MEDIUM:** a "detecção de APIs
+  deprecated" exigida pelo enunciado entrou como **MEDIUM**. O enunciado não fixa uma
+  severidade para ela, então usamos a definição da própria escala: uso de API obsoleta é um
+  problema de **padronização/manutenção** (a API funciona hoje, mas quebra em upgrade futuro
+  e diverge do padrão atual), que é exatamente o balde MEDIUM. Não é HIGH (HIGH é reservado a
+  violações de MVC/SOLID, e API obsoleta é ortogonal à arquitetura) nem LOW (tem consequência
+  funcional, não é só cosmético). Consideramos ainda um bucket `OTHER`/categoria separada,
+  mas descartamos: quebraria o `## Summary` de 4 níveis do relatório e a ordenação por
+  severidade, além de esconder a urgência — o **nome** do anti-pattern ("Uso de API
+  deprecated") já cumpre o papel de categoria, com a severidade no colchete.
 
 **Como se garante que a skill é agnóstica de tecnologia**
 

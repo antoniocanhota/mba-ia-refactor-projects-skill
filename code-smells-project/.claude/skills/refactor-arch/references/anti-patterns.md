@@ -120,6 +120,31 @@ registra ocorrências com `arquivo:linha`.
   entrada já validada por um middleware/esquema anterior na cadeia.
 - **Transformação:** ver `refactoring-playbook.md` → "validar entrada na borda da rota".
 
+### [MEDIUM] Uso de API deprecated
+
+- **Sinais de detecção:**
+  - Chamada a função/método/classe/módulo/parâmetro **oficialmente marcado como obsoleto**
+    pelos mantenedores da linguagem, framework ou biblioteca — ainda funciona, mas tem
+    substituto moderno e/ou remoção agendada.
+  - Cruzar contra a **versão** detectada na Fase 1: um símbolo só é deprecated a partir da
+    versão em que foi marcado. Exemplos por stack (evitar → moderno):
+    - Python: `datetime.utcnow()` → `datetime.now(datetime.UTC)`; `collections.Mapping` →
+      `collections.abc.Mapping`; módulos `imp`/`distutils` → `importlib`/`packaging`.
+    - Flask: `@app.before_first_request` → inicialização explícita/factory.
+    - SQLAlchemy: `Query.get(id)` (legacy) → `Session.get(Model, id)`.
+    - Node/Express: `body-parser` avulso → `express.json()`; `new Buffer(x)` →
+      `Buffer.from(x)`/`Buffer.alloc(n)`; `url.parse()` → `new URL()`;
+      `crypto.createCipher` → `crypto.createCipheriv`.
+  - Outros sinais: `DeprecationWarning` emitido no boot/testes; docstring/comentário ou
+    changelog marcando "deprecated"; dependência sinalizada como deprecated no
+    `requirements.txt`/`package.json`.
+- **Impacto:** código preso a APIs obsoletas quebra no próximo upgrade de linguagem/lib,
+  perde correções de bug/segurança e diverge do padrão atual do ecossistema — dívida de
+  padronização/manutenção que só cresce.
+- **Não é ocorrência:** API estável e atual (mesmo que "antiga"); uso intencional de
+  camada de compatibilidade documentada. Sempre nomear o **substituto moderno** ao reportar.
+- **Transformação:** ver `refactoring-playbook.md` → "substituir API deprecated pelo equivalente moderno".
+
 ### [LOW] print() como mecanismo de logging
 
 - **Sinais de detecção:**
