@@ -50,8 +50,8 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 **B) Seção "Construção da Skill":**
 
 > **Estado atual:** a skill foi construída de forma incremental. Esta versão trata
-> **7 anti-patterns cobrindo as 4 severidades** — 2 CRITICAL, 2 HIGH, 2 MEDIUM e
-> 1 LOW — percorrendo as 3 fases ponta-a-ponta, e continua projetada para crescer
+> **8 anti-patterns cobrindo as 4 severidades** — 2 CRITICAL, 2 HIGH, 2 MEDIUM e
+> 2 LOW — percorrendo as 3 fases ponta-a-ponta, e continua projetada para crescer
 > (novos anti-patterns entram nos arquivos de referência sem alterar o fluxo).
 > Ferramenta escolhida: **Claude Code**.
 
@@ -75,7 +75,7 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 
 **Anti-patterns no catálogo e por quê**
 
-O catálogo cobre **7 anti-patterns nas 4 severidades**, priorizando os que são
+O catálogo cobre **8 anti-patterns nas 4 severidades**, priorizando os que são
 recorrentes nos 3 projetos e mais relevantes para **MVC/SOLID**, e alinhados de forma
 estrita à escala de severidade da própria skill. Cada entrada de `anti-patterns.md` tem
 uma transformação antes/depois correspondente em `refactoring-playbook.md` (relação 1:1,
@@ -90,6 +90,7 @@ casada pelo nome).
 | MEDIUM | Duplicação de código / lógica reimplementada | Viola DRY: validação copiada entre create/update e métodos de model já existentes reimplementados inline |
 | MEDIUM | Validação de entrada ausente nas rotas | Entrada usada sem checagem de tipo/formato vira 500 em vez de 400 — citado nominalmente na definição de MEDIUM |
 | LOW | `print()` como mecanismo de logging | Primeiro caso construído: detecção inequívoca (`grep 'print('`) e transformação segura (troca por logging com níveis); validou o pipeline inteiro com baixo risco |
+| LOW | Nomenclatura fraca de variáveis | Casa literalmente com a definição de LOW ("nomenclatura de variáveis ruins"); recorrente em 2 projetos (`cursor2`/`cursor3`, `u`/`e`/`p`/`cc`); 100% agnóstico e de transformação segura (renomeação pura) |
 
 - **Critério de seleção e alinhamento à escala:** um candidato inicial de MEDIUM ("God
   _function_ de inicialização" misturando conexão + schema + seed) foi descartado por ser,
@@ -136,24 +137,30 @@ casada pelo nome).
 **C) Seção "Resultados":**
 
 > A skill foi executada ponta-a-ponta (Fase 1 → Fase 2 → Fase 3) nos **3 projetos**.
-> Os números abaixo refletem o **catálogo MVP (1 anti-pattern: `print()`/`console.log`
-> como logging, LOW)** — de propósito menor que a análise manual mais ampla da seção A,
-> que cobre categorias (SQL Injection, credenciais hardcoded, God Class, endpoints sem
-> auth etc.) ainda não formalizadas no catálogo desta versão da skill.
+> `code-smells-project` já foi **reprocessado com o catálogo atual (7 anti-patterns,
+> 4 severidades)** — ver detalhes abaixo. `ecommerce-api-legacy` e `task-manager-api`
+> ainda refletem a rodada anterior, feita com o **catálogo MVP (1 anti-pattern:
+> `print()`/`console.log` como logging, LOW)**; reprocessá-los com o catálogo atual
+> fica como próximo passo.
 
 Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-{1,2,3}.md`):
 
 | Projeto | CRITICAL | HIGH | MEDIUM | LOW | Total |
 |---|---|---|---|---|---|
-| code-smells-project | 0 | 0 | 0 | 13 | 13 |
-| ecommerce-api-legacy | 0 | 0 | 0 | 2 | 2 |
-| task-manager-api | 0 | 0 | 0 | 11 | 11 |
+| code-smells-project | 8 | 5 | 6 | 2 | 21 |
+| ecommerce-api-legacy *(catálogo MVP, pendente reprocessamento)* | 0 | 0 | 0 | 2 | 2 |
+| task-manager-api *(catálogo MVP, pendente reprocessamento)* | 0 | 0 | 0 | 11 | 11 |
 
-Todos os findings são a mesma categoria (`print()`/`console.log` como logging); cada
-relatório também documenta, em seção separada e **não pontuada** no total acima,
-achados reais fora do catálogo atual (SQL Injection, credenciais hardcoded, God Class,
-endpoints sem auth, hash de senha caseiro, N+1, etc.) — mantidos como roteiro para
-incrementos futuros do catálogo, sem serem tratados como confirmados nesta versão MVP.
+`code-smells-project` foi auditado contra as 7 categorias do catálogo atual — os 21
+findings cobrem God Class, dados sensíveis serializados na resposta (incl. `secret_key`
+vazado no health check e `senha` vazada em `/usuarios`), credenciais hardcoded, regra de
+negócio no controller, ausência de injeção de dependência/estado global mutável,
+duplicação de código, validação de entrada ausente (incluindo SQL Injection em `login`)
+e `print()` como logging. `ecommerce-api-legacy` e `task-manager-api` ainda têm apenas
+findings de uma categoria (`print()`/`console.log` como logging); cada relatório
+documenta, em seção separada e não pontuada, achados fora do catálogo MVP daquela
+rodada (SQL Injection, credenciais hardcoded, God Class, endpoints sem auth etc.) — hoje
+já cobertos pelo catálogo atual, mas ainda não auditados formalmente nesses dois projetos.
 
 ***code-smells-project*** (Python/Flask) — *processado pela skill*
 
@@ -161,14 +168,24 @@ Stack detectada na Fase 1: Python + Flask 3.1.1 + flask-cors, SQLite (tabelas
 `produtos`, `usuarios`, `pedidos`, `itens_pedido`), domínio E-commerce, 4 arquivos
 (~780 linhas), arquitetura monolítica.
 
-Antes / depois da estrutura: não houve restruturação de diretórios (achados LOW
-isolados não a justificam). Mudança in-place em `app.py` e `controllers.py`:
-`import logging` + `logging.basicConfig` central em `app.py`; `logger =
-logging.getLogger(__name__)` por módulo; os 13 `print()` de runtime (sucesso/erro em
-CRUD de produtos, usuários, login e pedidos, e o reset destrutivo do banco) viraram
-`logger.info` / `logger.warning` / `logger.exception` com argumentos lazy (`%s`).
-Banner de CLI em `app.py` (bloco `__main__`) preservado. Estrutura de arquivos
-inalterada (`app.py`, `controllers.py`, `models.py`, `database.py`).
+Antes / depois da estrutura: reestruturação completa em camadas — os achados
+CRITICAL/HIGH (God Class, dados sensíveis na resposta, SQL Injection, regra de negócio
+no controller, estado global mutável) justificam sair do monolito, conforme a regra de
+"adaptação ao contexto" das guidelines. Estrutura nova: `config/settings.py` (segredos
+e listas de valores válidos lidos de variáveis de ambiente, nunca hardcoded);
+`database/` (`connection.py`, `schema.py`, `seed.py` — conexão, schema e seed
+separados); `models/` (`produto_model.py`, `usuario_model.py`, `pedido_model.py`,
+todas as queries parametrizadas, sem concatenação de string); `services/`
+(`produto_service.py`, `usuario_service.py`, `pedido_service.py`, `admin_service.py` —
+validação, regra de negócio, hashing de senha via `werkzeug.security`, projeção
+pública do usuário sem `senha`); `controllers/` (um por domínio, só orquestram:
+validam shape, chamam o serviço, montam a resposta); `routes/routes.py` (registro de
+rotas). `app.py` virou composition root: monta conexão, models, services e controllers
+uma única vez e sobe o servidor. `senha` nunca mais sai em `/usuarios`; `login` usa
+query parametrizada + verificação de hash (elimina o SQL Injection de bypass de
+autenticação); `health_check` não expõe mais `secret_key`/`debug`; `/admin/reset-db` e
+`/admin/query` passam a exigir header `X-Admin-Token` (antes públicos) — nenhum
+endpoint foi removido, ver seção B.
 
 ## Checklist de Validação
 
@@ -182,28 +199,29 @@ inalterada (`app.py`, `controllers.py`, `models.py`, `database.py`).
 - [x] Relatório segue o template definido nos arquivos de referência
 - [x] Cada finding tem arquivo e linhas exatos
 - [x] Findings ordenados por severidade (CRITICAL → LOW)
-- [x] Mínimo de 5 findings identificados (13)
+- [x] Mínimo de 5 findings identificados (21)
 - [ ] Detecção de APIs deprecated incluída *(não implementada nesta versão do catálogo)*
 - [x] Skill pausa e pede confirmação antes da Fase 3
 
 ### Fase 3 — Refatoração
-- [ ] Estrutura de diretórios segue padrão MVC *(fora de escopo: único achado é LOW e isolado, guideline de "adaptação ao contexto" não exige restruturação)*
-- [ ] Configuração extraída para módulo de config *(fora de escopo do único anti-pattern do catálogo)*
-- [ ] Models criados para abstrair dados *(já existiam; não é objeto desta transformação)*
-- [ ] Views/Routes separadas *(fora de escopo)*
-- [ ] Controllers concentram o fluxo da aplicação *(fora de escopo)*
-- [ ] Error handling centralizado *(fora de escopo)*
-- [x] Entry point claro (`app.py`)
+- [x] Estrutura de diretórios segue padrão MVC (`config/`, `database/`, `models/`, `services/`, `controllers/`, `routes/`, `app.py` como composition root)
+- [x] Configuração extraída para módulo de config (`config/settings.py`: `SECRET_KEY`, `ADMIN_TOKEN`, `DB_PATH`, listas de valores válidos lidos de env)
+- [x] Models criados para abstrair dados (queries parametrizadas em `models/`)
+- [x] Views/Routes separadas (`routes/routes.py`)
+- [x] Controllers concentram o fluxo da aplicação (`controllers/`: validam, delegam ao serviço, montam resposta)
+- [ ] Error handling centralizado *(cada controller trata sua própria exceção; não há um middleware/error handler único — fora do escopo desta rodada)*
+- [x] Entry point claro (`app.py` como composition root)
 - [x] Aplicação inicia sem erros
-- [x] Endpoints originais respondem corretamente
+- [x] Endpoints originais respondem corretamente (todos, incluindo `/admin/query` — restaurado atrás de `X-Admin-Token` após correção do usuário, ver seção B)
 
 Log da aplicação rodando após a refatoração (Fase 3):
 
 ```
-2026-07-17 23:26:57,139 INFO controllers: Listando 10 produtos
-2026-07-17 23:26:57,140 INFO werkzeug: 127.0.0.1 - - "GET /produtos HTTP/1.1" 200 -
-2026-07-17 23:26:58,004 INFO controllers: Produto criado com ID: 11
-2026-07-17 23:26:58,005 INFO werkzeug: 127.0.0.1 - - "POST /produtos HTTP/1.1" 201 -
+2026-07-18 19:00:30 INFO services.usuario_service: Login bem-sucedido: admin@loja.com
+2026-07-18 19:00:31 WARNING services.usuario_service: Login falhou: admin@loja.com
+2026-07-18 19:00:32 INFO services.produto_service: Produto criado com ID: 11
+2026-07-18 19:00:33 INFO services.pedido_service: Notificação (email): pedido 1 criado para usuário 2
+2026-07-18 19:00:33 WARNING services.admin_service: Banco de dados resetado
 ```
 
 ***ecommerce-api-legacy*** (Node/Express) — *processado pela skill*
@@ -309,6 +327,15 @@ Node/Express):
 
 - A heurística de detecção de stack (Fase 1) funcionou sem ajuste manual nos 3
   projetos, incluindo a leitura de `package.json` vs. `requirements.txt`.
+- Com o catálogo atual (7 anti-patterns, 4 severidades), `code-smells-project` teve
+  achados CRITICAL/HIGH suficientes para justificar a reestruturação completa em
+  camadas — a regra de "adaptação ao contexto" das guidelines escalou a resposta ao
+  tamanho real dos problemas encontrados. `ecommerce-api-legacy` e `task-manager-api`
+  ainda não foram reprocessados com esse catálogo; os resultados documentados abaixo
+  refletem a rodada anterior (catálogo MVP, só `print()`/`console.log`), onde a mesma
+  regra corretamente não exigiu reestruturação (achado único, LOW, isolado) — a
+  checklist de Fase 3 desses dois projetos continua com os itens de arquitetura MVC
+  não marcados por esse motivo, não por limitação da skill.
 - A mesma transformação conceitual (`print()`/`console.log` → logging estruturado com
   níveis) foi aplicada com implementações diferentes por ecossistema: módulo
   `logging` nativo do Python vs. um logger mínimo escrito à mão em `logger.js`
@@ -318,12 +345,6 @@ Node/Express):
 - A exceção de "banner de CLI legítimo" do catálogo se mostrou necessária nas 3
   stacks (bloco `__main__` do Flask, script `seed.py`, listener do Express) — sem
   ela, o critério teria sinalizado falso-positivo em todas.
-- Nenhum dos 3 projetos exigiu reestruturação de diretórios nesta rodada, já que o
-  único anti-pattern confirmado é LOW e isolado — a regra de "adaptação ao contexto"
-  das guidelines evitou impor uma árvore MVC completa sem necessidade. Isso também
-  explica por que a checklist de Fase 3 acima tem vários itens de arquitetura MVC
-  não marcados: eles pertencem ao alvo final da skill, não ao escopo do catálogo
-  MVP atual.
 
 **D) Seção "Como Executar":**
 
@@ -352,3 +373,12 @@ gera o relatório, **salva em `.md` no path/nome que você informar** e pausa em
 
 - Boot: `pip install -r requirements.txt && python app.py` (ou `npm install && npm start`).
 - Endpoints: `curl` nos principais (ex: `GET /health`, `GET /produtos`).
+- `code-smells-project` (pós Fase 3): segredos e flags vêm de variáveis de ambiente
+  opcionais — `SECRET_KEY`, `ADMIN_TOKEN`, `DB_PATH` (todas com default de
+  desenvolvimento em `config/settings.py` se não setadas). Os endpoints
+  administrativos exigem o header `X-Admin-Token`:
+  ```bash
+  curl -X POST http://localhost:5000/admin/reset-db -H "X-Admin-Token: dev-admin-token-change-me"
+  curl -X POST http://localhost:5000/admin/query -H "X-Admin-Token: dev-admin-token-change-me" \
+       -H "Content-Type: application/json" -d '{"sql":"SELECT * FROM produtos"}'
+  ```

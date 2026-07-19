@@ -135,3 +135,22 @@ registra ocorrências com `arquivo:linha`.
 - **Não é ocorrência:** banners de inicialização de CLI e mensagens de UX de linha
   de comando podem ser `print` legítimo — avalie o contexto e reporte com ressalva.
 - **Transformação:** ver `refactoring-playbook.md` → "print() → logging".
+
+### [LOW] Nomenclatura fraca de variáveis
+
+- **Sinais de detecção:**
+  - Identificadores não descritivos que não revelam a intenção: nomes de 1 letra
+    fora de um escopo trivial (`u`, `e`, `p`, `cc`, `cid`), abreviações opacas, ou
+    sufixos numéricos para desambiguar em vez de nomear o papel (`cursor2`, `cursor3`,
+    `data2`, `tmp1`).
+  - Vários nomes crus do mesmo tipo no mesmo escopo, diferenciados só por um número.
+  - Equivalentes por stack: aplica-se a qualquer linguagem — `x`/`y`/`z` em Python,
+    `d`/`req2` em Node, `obj1`/`obj2` em Java. O sinal é semântico (nome não comunica
+    propósito), não sintático.
+- **Impacto:** reduz a legibilidade e aumenta o custo de manutenção — quem lê precisa
+  reconstruir o significado do nome pelo uso; sufixos numéricos escondem que são coisas
+  distintas (ex: dois cursores de queries diferentes), facilitando trocas acidentais.
+- **Não é ocorrência:** convenções idiomáticas e de escopo curtíssimo amplamente aceitas
+  — índices de loop (`i`, `j`), `e` para exceção em `except`/`catch`, `_` para descarte,
+  receiver curto de método (`self`/`this`). Avalie o contexto antes de reportar.
+- **Transformação:** ver `refactoring-playbook.md` → "renomear para nomes intencionais".

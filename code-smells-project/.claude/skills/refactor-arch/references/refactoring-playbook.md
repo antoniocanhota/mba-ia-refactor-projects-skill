@@ -343,3 +343,45 @@ def search_tasks():
 
 **Validação:** entrada inválida retorna 400 (não 500); nenhum `int(...)`/conversão crua sem
 tratamento no caminho da requisição; entrada válida segue funcionando.
+
+---
+
+## Renomear para nomes intencionais
+
+**Corrige:** `[LOW] Nomenclatura fraca de variáveis`.
+
+**Objetivo:** substituir identificadores crus/numéricos por nomes que revelam o papel do
+valor, sem alterar comportamento (renomeação pura).
+
+**Passos:**
+1. Para cada variável mal nomeada, identificar o **papel** que ela cumpre no escopo
+   (o que contém / para que serve).
+2. Renomear para um nome descritivo desse papel; preferir nomear o papel a numerar
+   (`cursor2` → `cursor_itens`, não `cursor_b`).
+3. Renomear consistentemente todas as referências (usar rename do editor/IDE quando houver,
+   para evitar troca parcial).
+4. Preservar convenções idiomáticas legítimas (`i`/`j` de loop, `e` de exceção, `_` de
+   descarte) — não renomear o que já é claro pelo contexto.
+
+**Antes** (`models.py`):
+```python
+cursor2 = conn.cursor()
+cursor2.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (pid,))
+cursor3 = conn.cursor()
+cursor3.execute("SELECT * FROM produtos WHERE id = ?", (item["produto_id"],))
+```
+
+**Depois:**
+```python
+cursor_itens = conn.cursor()
+cursor_itens.execute("SELECT * FROM itens_pedido WHERE pedido_id = ?", (pid,))
+cursor_produto = conn.cursor()
+cursor_produto.execute("SELECT * FROM produtos WHERE id = ?", (item["produto_id"],))
+```
+
+**Equivalentes por stack:** vale para qualquer linguagem — `u`/`e`/`p`/`cc` (Node) →
+`user`/`email`/`password`/`cardNumber`; `obj1`/`obj2` (Java) → nomes do domínio.
+
+**Validação:** nenhum identificador de 1 letra fora de escopo trivial nem sufixo numérico
+de desambiguação nos trechos tocados; a aplicação sobe e se comporta igual (renomeação não
+muda semântica).
