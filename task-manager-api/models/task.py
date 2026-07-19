@@ -1,6 +1,5 @@
 from database import db
-from datetime import datetime
-import json
+from utils.helpers import utcnow
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -12,8 +11,8 @@ class Task(db.Model):
     priority = db.Column(db.Integer, default=3)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
     due_date = db.Column(db.DateTime, nullable=True)
     tags = db.Column(db.String(500), nullable=True)
 
@@ -35,21 +34,9 @@ class Task(db.Model):
         data['tags'] = self.tags.split(',') if self.tags else []
         return data
 
-    def validate_status(self, new_status):
-        valid = ['pending', 'in_progress', 'done', 'cancelled']
-        if new_status in valid:
-            return True
-        else:
-            return False
-
-    def validate_priority(self, p):
-        if p >= 1 and p <= 5:
-            return True
-        return False
-
     def is_overdue(self):
         if self.due_date:
-            if self.due_date < datetime.utcnow():
+            if self.due_date < utcnow():
                 if self.status != 'done' and self.status != 'cancelled':
                     return True
                 else:
