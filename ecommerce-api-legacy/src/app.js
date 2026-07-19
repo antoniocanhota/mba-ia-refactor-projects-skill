@@ -1,14 +1,28 @@
 const express = require('express');
-const AppManager = require('./AppManager');
-const { config } = require('./utils');
+const config = require('./config/config');
+const logger = require('./utils/logger');
+const { createConnection, initSchema } = require('./db/connection');
+const InMemoryCache = require('./cache/inMemoryCache');
+const createRouter = require('./routes');
+const errorHandler = require('./middlewares/errorHandler');
 
-const app = express();
-app.use(express.json());
+async function start() {
+    const app = express();
+    app.use(express.json());
 
-const manager = new AppManager();
-manager.initDb();
-manager.setupRoutes(app);
+    const db = createConnection();
+    await initSchema(db);
 
-app.listen(config.port, () => {
-    console.log(`Frankenstein LMS rodando na porta ${config.port}...`);
-});
+    const cache = new InMemoryCache();
+
+    app.use(createRouter({ db, cache }));
+    app.use(errorHandler);
+
+    app.listen(config.port, () => {
+        logger.info(`Frankenstein LMS rodando na porta ${config.port}...`);
+    });
+}
+
+start();
+
+module.exports = { start };
