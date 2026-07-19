@@ -158,10 +158,8 @@ casada pelo nome).
 **C) Seção "Resultados":**
 
 > A skill foi executada ponta-a-ponta (Fase 1 → Fase 2 → Fase 3) nos **3 projetos**,
-> todos já **reprocessados com o catálogo atual (9 anti-patterns, 4 severidades)** —
-> ver detalhes abaixo. `task-manager-api` foi o último a ser reprocessado: a rodada
-> anterior (catálogo MVP, 1 anti-pattern: `print()`/`console.log` como logging) foi
-> substituída por uma auditoria completa contra as 9 categorias.
+> auditando cada um contra as **9 categorias do catálogo (4 severidades)** — ver
+> detalhes abaixo.
 
 Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-{1,2,3}.md`):
 
@@ -171,7 +169,7 @@ Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-
 | ecommerce-api-legacy | 1 | 4 | 3 | 3 | 11 |
 | task-manager-api | 1 | 4 | 7 | 2 | 14 |
 
-`code-smells-project` foi auditado contra as 9 categorias do catálogo atual — os 15
+`code-smells-project` foi auditado contra as 9 categorias do catálogo — os 15
 findings cobrem God Class (rotas administrativas embutidas em `app.py`, fora de
 controllers/models), dados sensíveis serializados na resposta (`senha` vazada em
 `/usuarios` e `secret_key`/`debug` vazados no health check), regra de negócio no
@@ -377,7 +375,7 @@ listada no `requirements.txt` mas nunca usada); `print()` de runtime virou
 `critical_count`/.../`minimal_count`; variáveis de laço `t`/`u`/`c` renomeadas para
 `task`/`user`/`category`. Nenhum endpoint foi removido — inclusive o "token" fake de
 login (`fake-jwt-token-<id>`) foi mantido, por não constar no relatório de auditoria
-como achado do catálogo atual.
+como achado do catálogo.
 
 ## Checklist de Validação
 
@@ -421,7 +419,7 @@ Node/Express):
 
 - A heurística de detecção de stack (Fase 1) funcionou sem ajuste manual nos 3
   projetos, incluindo a leitura de `package.json` vs. `requirements.txt`.
-- Com o catálogo atual (9 anti-patterns, 4 severidades), a regra de "adaptação ao
+- Com o catálogo (9 anti-patterns, 4 severidades), a regra de "adaptação ao
   contexto" das guidelines levou a graus de restruturação bem diferentes conforme o
   estado real de cada projeto. `code-smells-project` e `task-manager-api` tiveram
   achados que vão de CRITICAL/HIGH a LOW, mas os dois já chegavam com as camadas
