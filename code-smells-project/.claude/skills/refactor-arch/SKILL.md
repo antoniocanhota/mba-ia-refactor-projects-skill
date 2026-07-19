@@ -99,7 +99,12 @@ Só executa após o `y` da Fase 2.
    playbook. **Adapte-se ao contexto**: um monolito exige restruturação em camadas;
    um projeto já parcialmente organizado exige apenas correções pontuais. Não force
    estrutura que o escopo dos achados não justifica.
-3. Preserve o comportamento observável (mesmos endpoints, mesmas respostas).
+3. Preserve o comportamento observável (mesmos endpoints, mesmas respostas). **Nunca
+   remova um endpoint ou funcionalidade como forma de corrigir um achado — nem mesmo
+   um achado CRITICAL.** Se um endpoint é perigoso (ex: execução de SQL arbitrário,
+   ausência de autenticação), a transformação é **proteger** (autenticação/autorização,
+   validação, sandboxing), não apagar. Se genuinamente não houver transformação segura
+   que preserve o endpoint, **pare e pergunte ao usuário** em vez de decidir remover.
 4. **Valide o resultado** (não-destrutivo):
    - A aplicação inicializa sem erros (boot).
    - Os endpoints principais respondem corretamente.
@@ -125,6 +130,12 @@ PHASE 3: REFACTORING COMPLETE
 ## Regras operacionais
 
 - **Confirmação humana obrigatória** entre Fase 2 e Fase 3. Sem `y`, nada muda.
+- **Nunca remova funcionalidade.** A Fase 3 corrige anti-patterns, não decide o que a
+  API deve ou não expor. Endpoints/rotas originais continuam existindo e respondendo
+  após a refatoração — mesmo os que a auditoria classificou como CRITICAL. A correção
+  de um endpoint perigoso é protegê-lo (autenticação, validação de entrada, queries
+  parametrizadas), nunca eliminá-lo. Dúvida sobre como proteger sem quebrar o
+  comportamento → parar e perguntar ao usuário, não decidir sozinho.
 - **Sinais de detecção específicos** — reporte "chamada `print()` registrando evento
   de runtime em `controllers.py:57`", nunca "código ruim".
 - **Agnóstica de tecnologia** — as heurísticas e o catálogo descrevem sinais, não
