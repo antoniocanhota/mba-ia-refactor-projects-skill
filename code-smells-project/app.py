@@ -1,12 +1,53 @@
+import logging
+import os
+from functools import wraps
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
 import controllers
-from database import get_db
+import database
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "minha-chave-super-secreta-123"
-app.config["DEBUG"] = True
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-troque-em-producao")
+app.config["DEBUG"] = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+# Sem isso, o Flask ignora os error handlers abaixo e propaga a exceção pro
+# debugger interativo sempre que DEBUG=True.
+app.config["PROPAGATE_EXCEPTIONS"] = False
 CORS(app)
+
+database.init_app(app)
+
+
+def requer_admin(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not ADMIN_API_KEY:
+            return jsonify({"erro": "Rotas administrativas desabilitadas (ADMIN_API_KEY não configurada)"}), 503
+        if request.headers.get("X-Admin-Key") != ADMIN_API_KEY:
+            return jsonify({"erro": "Não autorizado"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+@app.errorhandler(404)
+def tratar_nao_encontrado(e):
+    return jsonify({"erro": "Recurso não encontrado"}), 404
+
+
+@app.errorhandler(Exception)
+def tratar_erro_inesperado(e):
+    logger.exception("Erro não tratado")
+    return jsonify({"erro": "Erro interno do servidor"}), 500
+
 
 app.add_url_rule("/produtos", "listar_produtos", controllers.listar_produtos, methods=["GET"])
 app.add_url_rule("/produtos/busca", "buscar_produtos", controllers.buscar_produtos, methods=["GET"])
@@ -29,6 +70,10 @@ app.add_url_rule("/relatorios/vendas", "relatorio_vendas", controllers.relatorio
 
 app.add_url_rule("/health", "health_check", controllers.health_check, methods=["GET"])
 
+app.add_url_rule("/admin/reset-db", "reset_database", requer_admin(controllers.reset_database), methods=["POST"])
+app.add_url_rule("/admin/query", "executar_query", requer_admin(controllers.executar_query), methods=["POST"])
+
+
 @app.route("/")
 def index():
     return jsonify({
@@ -44,45 +89,11 @@ def index():
         }
     })
 
-@app.route("/admin/reset-db", methods=["POST"])
-def reset_database():
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("DELETE FROM itens_pedido")
-    cursor.execute("DELETE FROM pedidos")
-    cursor.execute("DELETE FROM produtos")
-    cursor.execute("DELETE FROM usuarios")
-    db.commit()
-    print("!!! BANCO DE DADOS RESETADO !!!")
-    return jsonify({"mensagem": "Banco de dados resetado", "sucesso": True}), 200
-
-@app.route("/admin/query", methods=["POST"])
-def executar_query():
-    dados = request.get_json()
-    query = dados.get("sql", "")
-    if not query:
-        return jsonify({"erro": "Query não informada"}), 400
-
-    db = get_db()
-    cursor = db.cursor()
-    try:
-        cursor.execute(query)
-        if query.strip().upper().startswith("SELECT"):
-            rows = cursor.fetchall()
-            result = [dict(row) for row in rows]
-            return jsonify({"dados": result, "sucesso": True}), 200
-        else:
-            db.commit()
-            return jsonify({"mensagem": "Query executada", "sucesso": True}), 200
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
 
 if __name__ == "__main__":
+    logger.info("=" * 50)
+    logger.info("SERVIDOR INICIADO")
+    logger.info("Rodando em http://localhost:5000")
+    logger.info("=" * 50)
 
-    get_db()
-    print("=" * 50)
-    print("SERVIDOR INICIADO")
-    print("Rodando em http://localhost:5000")
-    print("=" * 50)
-
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=app.config["DEBUG"])
