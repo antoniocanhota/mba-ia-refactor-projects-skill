@@ -103,23 +103,6 @@ registra ocorrências com `arquivo:linha`.
   distintas não são duplicação — não force uma abstração que acople o que deveria variar.
 - **Transformação:** ver `refactoring-playbook.md` → "extrair/reusar lógica duplicada".
 
-### [MEDIUM] Validação de entrada ausente nas rotas
-
-- **Sinais de detecção:**
-  - Dados vindos do request (body/params/query) usados direto em query, cálculo ou
-    persistência **sem checagem prévia** de presença, tipo ou formato.
-  - Conversões sem tratamento que estouram 500 para entrada inválida (ex: `int(user_id)` /
-    `int(priority)` sem `try`/validação → `ValueError` não tratado).
-  - Campos obrigatórios não verificados; ids/números aceitos como string arbitrária; formato
-    (e-mail, cartão, datas) nunca validado antes do uso.
-  - Equivalentes por stack: `req.body.x` usado sem validar (Node); `@RequestParam` consumido
-    sem `@Valid`/checagem (Java).
-- **Impacto:** entrada inválida vira erro 500 (vazando stack/detalhes internos) em vez de 400
-  acionável; abre espaço para dados corrompidos persistidos e comportamento imprevisível.
-- **Não é ocorrência:** rota que só repassa um valor opaco sem interpretá-lo/persistí-lo, ou
-  entrada já validada por um middleware/esquema anterior na cadeia.
-- **Transformação:** ver `refactoring-playbook.md` → "validar entrada na borda da rota".
-
 ### [MEDIUM] Uso de API deprecated
 
 - **Sinais de detecção:**
@@ -144,6 +127,28 @@ registra ocorrências com `arquivo:linha`.
 - **Não é ocorrência:** API estável e atual (mesmo que "antiga"); uso intencional de
   camada de compatibilidade documentada. Sempre nomear o **substituto moderno** ao reportar.
 - **Transformação:** ver `refactoring-playbook.md` → "substituir API deprecated pelo equivalente moderno".
+
+### [MEDIUM] Tratamento de erro espalhado / não centralizado
+
+- **Sinais de detecção:**
+  - Bloco `try/except` (ou `try/catch`) genérico **repetido em quase todo handler**, cada um
+    montando a mesma resposta de erro à mão — em vez de um handler de erro central.
+  - Captura genérica demais: `except Exception`, `except:` nu (bare except), `catch (e)` que
+    engole qualquer falha sem distinguir tipos.
+  - **Vazamento de detalhes internos** ao cliente: devolver `str(e)`/`e.message`/stack trace
+    no corpo da resposta (expõe estrutura interna e mensagens de exceção).
+  - Ausência de um ponto único de tratamento: nenhum error-handler/middleware global
+    registrado (`@app.errorhandler`, `app.use((err,req,res,next)=>...)`,
+    `@ControllerAdvice`, etc.).
+  - Equivalentes por stack: Flask → `@app.errorhandler` ausente; Express → sem middleware
+    `(err, req, res, next)`; Java → sem `@ControllerAdvice`/`@ExceptionHandler`.
+- **Impacto:** duplicação do mesmo boilerplate de erro em N lugares (viola DRY e a definição
+  de "uso inadequado de middlewares"), respostas de erro inconsistentes entre endpoints, e
+  vazamento de detalhes internos que ajuda um atacante a mapear o sistema.
+- **Não é ocorrência:** `except` **específico e local** que trata uma falha esperada e
+  recupera o fluxo (ex: `except ValueError` para validar entrada e retornar 400) não é
+  espalhamento — o problema é o genérico repetido sem handler central.
+- **Transformação:** ver `refactoring-playbook.md` → "error handler centralizado / middleware".
 
 ### [LOW] print() como mecanismo de logging
 

@@ -19,9 +19,9 @@ fluxo; o conhecimento de domínio vive em `references/` e é lido **sob demanda*
 > Estado atual: o catálogo cobre **9 anti-patterns** — 2 CRITICAL (God Class;
 > dados sensíveis na resposta), 2 HIGH (regra de negócio no controller; ausência de
 > injeção de dependência / estado global mutável), 3 MEDIUM (duplicação de código;
-> validação de entrada ausente nas rotas; uso de API deprecated) e 2 LOW (`print()`
-> como logging; nomenclatura fraca de variáveis). A estrutura foi desenhada para
-> crescer — novos anti-patterns entram em `references/anti-patterns.md` e
+> uso de API deprecated; tratamento de erro não centralizado) e 2 LOW (`print()` como
+> logging; nomenclatura fraca de variáveis). A estrutura foi desenhada para crescer —
+> novos anti-patterns entram em `references/anti-patterns.md` e
 > `references/refactoring-playbook.md` sem alterar este fluxo.
 
 ## Como executar

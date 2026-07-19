@@ -307,45 +307,6 @@ bloco duplicado remanescente.
 
 ---
 
-## Validar entrada na borda da rota
-
-**Corrige:** `[MEDIUM] Validação de entrada ausente nas rotas`.
-
-**Objetivo:** validar presença/tipo/formato da entrada antes de usá-la, retornando **400**
-acionável em vez de deixar estourar 500.
-
-**Passos:**
-1. Na borda da rota/controller, checar campos obrigatórios, tipos e formato antes de qualquer
-   query/cálculo/persistência.
-2. Converter com segurança (ex: parse numérico com tratamento) e responder 400 com mensagem
-   clara quando inválido.
-3. Centralizar validações comuns num validador reutilizável (casa com o item de DRY acima).
-
-**Antes** (`routes/task_routes.py`):
-```python
-def search_tasks():
-    priority = int(request.args.get("priority"))   # ValueError → 500 não tratado
-    user_id = int(request.args.get("user_id"))
-    ...
-```
-
-**Depois:**
-```python
-def search_tasks():
-    priority, err = parse_int(request.args.get("priority"))
-    if err:
-        return jsonify({"erro": "priority deve ser inteiro"}), 400
-    ...
-```
-
-**Equivalentes por stack:** Node → validar `req.body`/`req.query` (ex: `zod`/`joi`) e retornar
-400; Java → `@Valid` + `@RequestParam` tipado com handler de `MethodArgumentNotValidException`.
-
-**Validação:** entrada inválida retorna 400 (não 500); nenhum `int(...)`/conversão crua sem
-tratamento no caminho da requisição; entrada válida segue funcionando.
-
----
-
 ## Substituir API deprecated pelo equivalente moderno
 
 **Corrige:** `[MEDIUM] Uso de API deprecated`.
@@ -393,6 +354,60 @@ seguir o guia de migração oficial da versão.
 
 **Validação:** boot/testes sem `DeprecationWarning` para os símbolos corrigidos; endpoints
 respondem igual; manifesto sem dependências deprecated remanescentes.
+
+---
+
+## Error handler centralizado / middleware
+
+**Corrige:** `[MEDIUM] Tratamento de erro espalhado / não centralizado`.
+
+**Objetivo:** concentrar o tratamento de erro num ponto único (middleware/handler global),
+removendo o `try/except` genérico repetido e o vazamento de `str(e)` ao cliente.
+
+**Passos:**
+1. Registrar um **error handler global** no ponto de entrada (composition root).
+2. Remover os `try/except Exception`/`catch (e)` genéricos dos handlers — deixar a exceção
+   propagar para o handler central. Manter só os `except` específicos que **recuperam** o
+   fluxo (ex: `except ValueError` → 400).
+3. No handler central: **logar** a exceção (com stack, via logging) e devolver ao cliente uma
+   resposta genérica e estável (ex: `{"erro": "internal error"}` + 500), **sem** `str(e)`.
+4. Padronizar o formato das respostas de erro em um só lugar.
+
+**Antes** (`controllers.py` — repetido em todo handler):
+```python
+def criar_produto():
+    try:
+        ...
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500   # vaza detalhe interno; boilerplate repetido
+```
+
+**Depois** (`middlewares/error_handler.py` + registro no entry point):
+```python
+# middlewares/error_handler.py
+import logging
+logger = logging.getLogger(__name__)
+
+def register_error_handlers(app):
+    @app.errorhandler(Exception)
+    def handle_unexpected(e):
+        logger.exception("Erro não tratado")            # detalhe fica no log, não na resposta
+        return jsonify({"erro": "internal error"}), 500
+
+# app.py (composition root)
+register_error_handlers(app)
+
+# controllers.py — sem try/except genérico; só o específico que recupera:
+def criar_produto():
+    ...                                                  # exceções inesperadas sobem ao handler
+```
+
+**Equivalentes por stack:** Express → middleware `app.use((err, req, res, next) => {...})`
+registrado por último; Java/Spring → `@ControllerAdvice` + `@ExceptionHandler`.
+
+**Validação:** um só ponto de tratamento de erro; nenhum `str(e)`/stack na resposta ao
+cliente; endpoints seguem respondendo, e erros inesperados retornam resposta genérica
+padronizada (com o detalhe no log).
 
 ---
 

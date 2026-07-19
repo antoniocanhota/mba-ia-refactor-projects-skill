@@ -88,17 +88,22 @@ casada pelo nome).
 | HIGH | Regra de negócio presa no controller | Violação de MVC/SRP mais recorrente dos 3 projetos; a camada `services/` às vezes existe mas é ignorada |
 | HIGH | Ausência de injeção de dependência / estado global mutável | Viola DIP: conexão no construtor/global e estado compartilhado entre requisições, impedindo teste isolado |
 | MEDIUM | Duplicação de código / lógica reimplementada | Viola DRY: validação copiada entre create/update e métodos de model já existentes reimplementados inline |
-| MEDIUM | Validação de entrada ausente nas rotas | Entrada usada sem checagem de tipo/formato vira 500 em vez de 400 — citado nominalmente na definição de MEDIUM |
 | MEDIUM | Uso de API deprecated | Requisito obrigatório do enunciado ("detecção de APIs deprecated + recomendar o equivalente moderno"); usa a versão detectada na Fase 1 para cruzar cada símbolo obsoleto contra seu substituto moderno |
+| MEDIUM | Tratamento de erro espalhado / não centralizado | Realiza o item "Error handling centralizado" do checklist da Fase 3; `except` genérico repetido vazando `str(e)` encaixa em "uso inadequado de middlewares" (MEDIUM) e transforma para um error-handler global |
 | LOW | `print()` como mecanismo de logging | Primeiro caso construído: detecção inequívoca (`grep 'print('`) e transformação segura (troca por logging com níveis); validou o pipeline inteiro com baixo risco |
 | LOW | Nomenclatura fraca de variáveis | Casa literalmente com a definição de LOW ("nomenclatura de variáveis ruins"); recorrente em 2 projetos (`cursor2`/`cursor3`, `u`/`e`/`p`/`cc`); 100% agnóstico e de transformação segura (renomeação pura) |
 
 - **Critério de seleção e alinhamento à escala:** um candidato inicial de MEDIUM ("God
   _function_ de inicialização" misturando conexão + schema + seed) foi descartado por ser,
   na verdade, uma violação de separação de responsabilidades — conceito que a escala coloca
-  em CRITICAL (God Class), não em MEDIUM. Foi substituído por "validação de entrada ausente
-  nas rotas", que a definição de MEDIUM cita nominalmente. Isso mantém o catálogo coerente
-  com a própria taxonomia de severidade.
+  em CRITICAL (God Class), não em MEDIUM. Isso mantém o catálogo coerente com a própria
+  taxonomia de severidade.
+- **Distribuição de severidades:** a "validação de entrada ausente nas rotas" chegou a
+  compor o catálogo, mas foi **removida** para não concentrar demais a distribuição em MEDIUM
+  (que chegou a ter 4 entradas) e por ser o MEDIUM menos ligado a MVC/SOLID — é robustez de
+  input, já parcialmente coberta pela extração de validação para a camada de serviço
+  (HIGH "regra de negócio presa no controller") e pelo retorno 400 do "tratamento de erro
+  não centralizado". A distribuição final ficou 2 CRITICAL / 2 HIGH / 3 MEDIUM / 2 LOW.
 - **Sem catálogo-fantasma:** o antigo bloco-comentário com transformações "previstas" foi
   removido do `refactoring-playbook.md` agora que estão de fato implementadas — o catálogo
   reflete só o que a skill realmente detecta e corrige, evitando inflar relatórios de
