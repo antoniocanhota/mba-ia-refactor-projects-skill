@@ -153,10 +153,10 @@ casada pelo nome).
 **C) Seção "Resultados":**
 
 > A skill foi executada ponta-a-ponta (Fase 1 → Fase 2 → Fase 3) nos **3 projetos**.
-> `code-smells-project` foi **reprocessado com o catálogo atual (9 anti-patterns,
-> 4 severidades)** — ver detalhes abaixo. `ecommerce-api-legacy` e `task-manager-api`
-> ainda refletem a rodada anterior, feita com o **catálogo MVP (1 anti-pattern:
-> `print()`/`console.log` como logging, LOW)**; reprocessá-los com o catálogo atual
+> `code-smells-project` e `ecommerce-api-legacy` foram **reprocessados com o catálogo
+> atual (9 anti-patterns, 4 severidades)** — ver detalhes abaixo. `task-manager-api`
+> ainda reflete a rodada anterior, feita com o **catálogo MVP (1 anti-pattern:
+> `print()`/`console.log` como logging, LOW)**; reprocessá-lo com o catálogo atual
 > fica como próximo passo.
 
 Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-{1,2,3}.md`):
@@ -164,7 +164,7 @@ Resumo consolidado dos relatórios de auditoria (Fase 2, `reports/audit-project-
 | Projeto | CRITICAL | HIGH | MEDIUM | LOW | Total |
 |---|---|---|---|---|---|
 | code-smells-project | 5 | 3 | 4 | 3 | 15 |
-| ecommerce-api-legacy *(catálogo MVP, pendente reprocessamento)* | 0 | 0 | 0 | 2 | 2 |
+| ecommerce-api-legacy | 1 | 4 | 3 | 3 | 11 |
 | task-manager-api *(catálogo MVP, pendente reprocessamento)* | 0 | 0 | 0 | 11 | 11 |
 
 `code-smells-project` foi auditado contra as 9 categorias do catálogo atual — os 15
@@ -174,12 +174,22 @@ controllers/models), dados sensíveis serializados na resposta (`senha` vazada e
 controller (notificações de pedido), ausência de injeção de dependência/estado global
 mutável, duplicação de código, tratamento de erro espalhado/não centralizado, `print()`
 como logging e nomenclatura fraca de variáveis — a única categoria do catálogo sem
-ocorrência nesta base foi "uso de API deprecated". `ecommerce-api-legacy` e
-`task-manager-api` ainda têm apenas
-findings de uma categoria (`print()`/`console.log` como logging); cada relatório
-documenta, em seção separada e não pontuada, achados fora do catálogo MVP daquela
-rodada (SQL Injection, credenciais hardcoded, God Class, endpoints sem auth etc.) — hoje
-já cobertos pelo catálogo atual, mas ainda não auditados formalmente nesses dois projetos.
+ocorrência nesta base foi "uso de API deprecated". `ecommerce-api-legacy` também foi
+auditado contra as 9 categorias — os 11 findings cobrem God Class (`AppManager.js`
+concentrando conexão, schema, rotas, controller e SQL), regra de negócio presa no
+controller (checkout e relatório financeiro), ausência de injeção de dependência
+(conexão instanciada no construtor) e estado global mutável (`globalCache`/
+`totalRevenue`), código morto correlato a lógica reimplementada, tratamento de erro
+espalhado/não centralizado (incluindo erros de callback silenciosamente ignorados no
+relatório financeiro), `print()` como logging (um deles vazando dado de cartão e a
+chave do gateway de pagamento) e nomenclatura fraca de variáveis — as categorias sem
+ocorrência nesta base foram "dados sensíveis serializados direto na resposta" (nenhum
+endpoint devolve a coluna `pass`) e "uso de API deprecated" (dependências e APIs usadas
+já são as atuais). `task-manager-api` ainda tem apenas findings de uma categoria
+(`print()`/`console.log` como logging); seu relatório documenta, em seção separada e
+não pontuada, achados fora do catálogo MVP daquela rodada (God Class, endpoints sem
+auth etc.) — hoje já cobertos pelo catálogo atual, mas ainda não auditados formalmente
+nesse projeto.
 
 ***code-smells-project*** (Python/Flask) — *processado pela skill*
 
@@ -253,51 +263,67 @@ Log da aplicação rodando após a refatoração (Fase 3):
 
 ***ecommerce-api-legacy*** (Node/Express) — *processado pela skill*
 
-Stack detectada na Fase 1: Node.js + Express, SQLite (via `sqlite3`), domínio
-E-commerce/checkout, 3 arquivos-fonte (~180 linhas), God Class `AppManager.js`.
+Stack detectada na Fase 1: Node.js + Express ^4.18.2, SQLite (via `sqlite3` ^5.1.6,
+em memória), domínio LMS com checkout de cursos, 3 arquivos-fonte (~166 linhas), God
+Class `AppManager.js` concentrando conexão, schema, seed, rotas, controller e SQL.
 
-Antes / depois da estrutura: não houve restruturação de diretórios (achados LOW
-isolados não a justificam). Único arquivo novo: `src/logger.js` — logger mínimo com
-níveis (`error/warn/info/debug`), timestamp ISO e nome do módulo de origem, nível
-configurável via `LOG_LEVEL`. `src/app.js` chama `configureLogger(...)` uma única vez
-no boot; `src/AppManager.js` e `src/utils.js` trocaram os 2 `console.log` de runtime
-(log do processamento de pagamento e do `logAndCache`) por `logger.info(...)`. Banner
-de boot em `src/app.js` (`"Frankenstein LMS rodando na porta..."`) preservado — é UX
-de inicialização, não log de runtime.
+Antes / depois da estrutura: era um **monolito** (toda a lógica em `AppManager.js`),
+então a Fase 3 aplicou a restruturação em camadas completa prevista nas guidelines,
+proporcional ao achado CRITICAL de God Class. `AppManager.js` e `utils.js` foram
+removidos e a lógica redistribuída em `src/config/` (config lida de env vars, com
+fallback de dev — sem segredo hardcoded fixo), `src/db/` (conexão + `CREATE TABLE`/seed
+promisificados, sem `db.serialize` implícito), `src/models/` (um módulo por entidade —
+`userModel`, `courseModel`, `enrollmentModel`, `paymentModel`, `auditLogModel` — todas
+as queries já eram parametrizadas e assim permaneceram), `src/services/`
+(`checkoutService` e `financialReportService`, extraindo a regra de negócio antes presa
+nos handlers), `src/controllers/` (só validam shape, chamam o serviço e montam a
+resposta), `src/routes/` (mapeamento HTTP → controller) e `src/middlewares/errorHandler.js`
+(error handler centralizado do Express, registrado por último em `app.js`, usando uma
+classe `AppError` para preservar exatamente os mesmos status/mensagens da versão
+legada). O `globalCache` mutável virou `src/cache/inMemoryCache.js`, instanciado uma
+vez no composition root e injetado no serviço; `totalRevenue` (código morto, nunca
+referenciado) foi removido. O `console.log` que vazava o número completo do cartão e a
+chave do gateway de pagamento foi substituído por `src/utils/logger.js` (logger mínimo
+com timestamp e níveis `info/warn/error`) com o número do cartão mascarado (só os
+últimos 4 dígitos) e a chave do gateway removida do log. `src/app.js` virou o
+composition root: monta conexão, schema, cache, rotas e error handler, e sobe o
+servidor. Nenhum endpoint foi removido — inclusive `DELETE /api/users/:id` manteve o
+comportamento legado de deixar matrículas/pagamentos órfãos, já que esse achado
+específico não constava no relatório de auditoria.
 
 ## Checklist de Validação
 
 ### Fase 1 — Análise
 - [x] Linguagem detectada corretamente (JavaScript/Node.js)
-- [x] Framework detectado corretamente (Express)
-- [x] Domínio da aplicação descrito corretamente (checkout/pagamentos)
-- [x] Número de arquivos analisados condiz com a realidade (3 arquivos, ~180 linhas)
+- [x] Framework detectado corretamente (Express ^4.18.2)
+- [x] Domínio da aplicação descrito corretamente (LMS com checkout de cursos)
+- [x] Número de arquivos analisados condiz com a realidade (3 arquivos, ~166 linhas)
 
 ### Fase 2 — Auditoria
 - [x] Relatório segue o template definido nos arquivos de referência
 - [x] Cada finding tem arquivo e linhas exatos
 - [x] Findings ordenados por severidade (CRITICAL → LOW)
-- [ ] Mínimo de 5 findings identificados *(apenas 2 — projeto pequeno, catálogo MVP cobre só 1 categoria; ≥5 exigiria os anti-patterns ainda não formalizados, ver seção "observações fora do catálogo" do relatório)*
-- [ ] Detecção de APIs deprecated incluída *(não implementada nesta versão do catálogo)*
+- [x] Mínimo de 5 findings identificados (11)
+- [x] Detecção de APIs deprecated incluída *(categoria verificada; nenhuma ocorrência encontrada nesta base — documentado no relatório)*
 - [x] Skill pausa e pede confirmação antes da Fase 3
 
 ### Fase 3 — Refatoração
-- [ ] Estrutura de diretórios segue padrão MVC *(fora de escopo: único achado é LOW e isolado)*
-- [ ] Configuração extraída para módulo de config *(fora de escopo do único anti-pattern do catálogo)*
-- [ ] Models criados para abstrair dados *(fora de escopo)*
-- [ ] Views/Routes separadas *(fora de escopo)*
-- [ ] Controllers concentram o fluxo da aplicação *(fora de escopo — `AppManager.js` continua God Class)*
-- [ ] Error handling centralizado *(fora de escopo)*
-- [x] Entry point claro (`src/app.js`)
+- [x] Estrutura de diretórios segue padrão MVC (`config/`, `db/`, `models/`, `services/`, `controllers/`, `routes/`, `middlewares/`, `cache/`, `errors/`, `utils/`)
+- [x] Configuração extraída para módulo de config (`src/config/config.js`, lida de env vars com fallback de dev)
+- [x] Models criados para abstrair dados (`src/models/*Model.js`, queries parametrizadas)
+- [x] Views/Routes separadas (`src/routes/index.js`)
+- [x] Controllers concentram o fluxo da aplicação (`src/controllers/*Controller.js`: validam, delegam ao serviço, montam a resposta)
+- [x] Error handling centralizado (`src/middlewares/errorHandler.js`, registrado por último em `app.js`, via classe `AppError`)
+- [x] Entry point claro (`src/app.js` como composition root)
 - [x] Aplicação inicia sem erros
-- [x] Endpoints originais respondem corretamente
+- [x] Endpoints originais respondem corretamente (checkout sucesso/recusado/curso inexistente/bad request, financial-report, delete user — nenhum removido)
 
-Formato de log emitido por `src/logger.js` (determinístico a partir da implementação:
-timestamp ISO + nível + nome do módulo):
+Log da aplicação rodando após a refatoração (Fase 3):
 
 ```
-2026-07-17T23:41:12.558Z INFO [AppManager]: Processando cartão 4111... na chave sk_test_...
-2026-07-17T23:41:12.560Z INFO [utils]: Salvando no cache: pedido_123
+2026-07-19T03:03:07.194Z INFO: Frankenstein LMS rodando na porta 3000...
+2026-07-19T03:03:07.764Z INFO: Processando cartão ************4444
+2026-07-19T03:03:07.766Z INFO: Cache atualizado para last_checkout_2
 ```
 
 ***task-manager-api*** (Python/Flask) — *processado pela skill*
@@ -354,17 +380,22 @@ Node/Express):
 
 - A heurística de detecção de stack (Fase 1) funcionou sem ajuste manual nos 3
   projetos, incluindo a leitura de `package.json` vs. `requirements.txt`.
-- Com o catálogo atual (9 anti-patterns, 4 severidades), `code-smells-project` teve
-  achados CRITICAL/HIGH, mas a regra de "adaptação ao contexto" das guidelines não
-  pediu reestruturação em diretórios novos — o projeto já chegava com as camadas
-  separadas em arquivos (`app.py`/`controllers.py`/`models.py`/`database.py`), então
-  a Fase 3 aplicou correções pontuais dentro dessa estrutura (mais um `services.py`
-  novo) em vez de criar uma árvore MVC do zero. `ecommerce-api-legacy` e `task-manager-api`
-  ainda não foram reprocessados com esse catálogo; os resultados documentados abaixo
-  refletem a rodada anterior (catálogo MVP, só `print()`/`console.log`), onde a mesma
-  regra corretamente não exigiu reestruturação (achado único, LOW, isolado) — a
-  checklist de Fase 3 desses dois projetos continua com os itens de arquitetura MVC
-  não marcados por esse motivo, não por limitação da skill.
+- Com o catálogo atual (9 anti-patterns, 4 severidades), a regra de "adaptação ao
+  contexto" das guidelines levou a graus de restruturação bem diferentes nos dois
+  projetos reprocessados. `code-smells-project` teve achados CRITICAL/HIGH, mas já
+  chegava com as camadas separadas em arquivos (`app.py`/`controllers.py`/
+  `models.py`/`database.py`) — a Fase 3 aplicou correções pontuais dentro dessa
+  estrutura (mais um `services.py` novo) em vez de criar uma árvore MVC do zero.
+  `ecommerce-api-legacy`, ao contrário, era um monolito de fato (God Class
+  `AppManager.js` concentrando tudo) — o mesmo achado CRITICAL levou, dessa vez, à
+  restruturação completa em camadas (`config/`, `db/`, `models/`, `services/`,
+  `controllers/`, `routes/`, `middlewares/`), confirmando que a regra reage ao
+  estado real do código, não a um molde fixo. `task-manager-api` ainda não foi
+  reprocessado com esse catálogo; os resultados documentados abaixo refletem a
+  rodada anterior (catálogo MVP, só `print()`/`console.log`), onde a mesma regra
+  corretamente não exigiu reestruturação (achado único, LOW, isolado) — a checklist
+  de Fase 3 desse projeto continua com os itens de arquitetura MVC não marcados por
+  esse motivo, não por limitação da skill.
 - A mesma transformação conceitual (`print()`/`console.log` → logging estruturado com
   níveis) foi aplicada com implementações diferentes por ecossistema: módulo
   `logging` nativo do Python vs. um logger mínimo escrito à mão em `logger.js`
@@ -411,4 +442,15 @@ gera o relatório, **salva em `.md` no path/nome que você informar** e pausa em
   curl -X POST http://localhost:5000/admin/reset-db -H "X-Admin-Key: $ADMIN_API_KEY"
   curl -X POST http://localhost:5000/admin/query -H "X-Admin-Key: $ADMIN_API_KEY" \
        -H "Content-Type: application/json" -d '{"sql":"SELECT * FROM produtos"}'
+  ```
+- `ecommerce-api-legacy` (pós Fase 3): sobe sem nenhuma variável de ambiente
+  obrigatória — `DB_USER`, `DB_PASS`, `PAYMENT_GATEWAY_KEY`, `SMTP_USER` e `PORT`
+  têm fallback de dev em `src/config/config.js`, sobrescrevíveis via env vars em
+  produção. O banco é SQLite em memória com seed automático (mesmo comportamento de
+  antes). Endpoints principais:
+  ```bash
+  curl -X POST http://localhost:3000/api/checkout -H "Content-Type: application/json" \
+       -d '{"usr":"Guilherme","eml":"gui@fullcycle.com.br","pwd":"senhaforte","c_id":2,"card":"4111222233334444"}'
+  curl http://localhost:3000/api/admin/financial-report
+  curl -X DELETE http://localhost:3000/api/users/1
   ```
