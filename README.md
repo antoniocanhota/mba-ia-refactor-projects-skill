@@ -93,21 +93,6 @@ casada pelo nome).
 | LOW | `print()` como mecanismo de logging | Primeiro caso construído: detecção inequívoca (`grep 'print('`) e transformação segura (troca por logging com níveis); validou o pipeline inteiro com baixo risco |
 | LOW | Nomenclatura fraca de variáveis | Casa literalmente com a definição de LOW ("nomenclatura de variáveis ruins"); recorrente em 2 projetos (`cursor2`/`cursor3`, `u`/`e`/`p`/`cc`); 100% agnóstico e de transformação segura (renomeação pura) |
 
-- **Critério de seleção e alinhamento à escala:** um candidato inicial de MEDIUM ("God
-  _function_ de inicialização" misturando conexão + schema + seed) foi descartado por ser,
-  na verdade, uma violação de separação de responsabilidades — conceito que a escala coloca
-  em CRITICAL (God Class), não em MEDIUM. Isso mantém o catálogo coerente com a própria
-  taxonomia de severidade.
-- **Distribuição de severidades:** a "validação de entrada ausente nas rotas" chegou a
-  compor o catálogo, mas foi **removida** para não concentrar demais a distribuição em MEDIUM
-  (que chegou a ter 4 entradas) e por ser o MEDIUM menos ligado a MVC/SOLID — é robustez de
-  input, já parcialmente coberta pela extração de validação para a camada de serviço
-  (HIGH "regra de negócio presa no controller") e pelo retorno 400 do "tratamento de erro
-  não centralizado". A distribuição final ficou 2 CRITICAL / 2 HIGH / 3 MEDIUM / 2 LOW.
-- **Sem catálogo-fantasma:** o antigo bloco-comentário com transformações "previstas" foi
-  removido do `refactoring-playbook.md` agora que estão de fato implementadas — o catálogo
-  reflete só o que a skill realmente detecta e corrige, evitando inflar relatórios de
-  auditoria com achados sem sinais de detecção definidos.
 - **Detecção de APIs deprecated (requisito obrigatório) como MEDIUM:** a "detecção de APIs
   deprecated" exigida pelo enunciado entrou como **MEDIUM**. O enunciado não fixa uma
   severidade para ela, então usamos a definição da própria escala: uso de API obsoleta é um
@@ -153,13 +138,6 @@ casada pelo nome).
 - **Validar sem sujar o fixture:** a Fase 3 foi testada de verdade (boot + endpoints)
   e depois **revertida via git**, preservando o `code-smells-project` no estado
   original de entrada do desafio.
-- **Escala de severidade genérica interferindo na classificação:** `anti-patterns.md`
-  tinha uma seção "Escala de severidade" no topo do arquivo, além da severidade já
-  anotada em cada entrada do catálogo. Essa seção citava exemplos soltos (ex: "SQL
-  Injection" como CRITICAL) que acabaram sendo usados para elevar achados além da
-  severidade definida na entrada específica do catálogo, tornando a classificação
-  inconsistente entre auditorias. Removida a pedido do usuário — a severidade de um
-  finding vem só da entrada correspondente do catálogo, nunca de uma escala geral solta.
 - **Fase 3 removeu um endpoint em vez de protegê-lo:** ao rodar a Fase 3 em
   `code-smells-project`, o endpoint `/admin/query` (executa SQL arbitrário vindo do
   cliente, achado CRITICAL) foi **removido** por ter sido interpretado como "sem fix
