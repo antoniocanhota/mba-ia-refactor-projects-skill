@@ -1,3 +1,5 @@
+# Criação de Skills — Refatoração Arquitetural Automatizada
+
 **A) Seção "Análise Manual":**
 
 Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão listados os que considerei mais relevantes por projeto:
@@ -57,7 +59,7 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 
 **Decisões de design — SKILL.md e arquivos de referência**
 
-- `SKILL.md` curto (~133 linhas, bem abaixo do teto de ~300/500), atuando só como
+- `SKILL.md` curto (~145 linhas, bem abaixo do teto de ~300/500), atuando só como
   **orquestrador** das 3 fases sequenciais (Análise → Auditoria → Refatoração). O
   conhecimento de domínio fica em `references/`, lido **sob demanda** (progressive
   disclosure), reduzindo tokens e ruído de contexto.
@@ -207,7 +209,9 @@ arquivos.
 
 Stack detectada na Fase 1: Python + Flask 3.1.1 + flask-cors, SQLite (tabelas
 `produtos`, `usuarios`, `pedidos`, `itens_pedido`), domínio E-commerce, 4 arquivos
-(~780 linhas), arquitetura monolítica.
+(~780 linhas), arquitetura com módulos separados por responsabilidade
+(`app.py`/`controllers.py`/`models.py`/`database.py`), mas sem camada de serviço nem
+de config — **parcialmente organizada**.
 
 Antes / depois da estrutura: o projeto já chegava **parcialmente organizado**
 (`app.py` = rotas, `controllers.py` = handlers, `models.py` = acesso a dados,
