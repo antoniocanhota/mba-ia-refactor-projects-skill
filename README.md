@@ -135,6 +135,14 @@ casada pelo nome).
 
 **Desafios encontrados e como resolvi**
 
+- **`skill-creator` da Anthropic: custo alto e resultado difícil de auditar:** a primeira
+  tentativa foi usar a skill oficial `skill-creator` para gerar a `refactor-arch` de uma vez.
+  Esbarrei em dois problemas: **custo elevado** — a execução esgotou minha quota em cerca de
+  1 hora — e um **resultado difícil de analisar**, gerado em bloco, no qual eu não conseguia
+  entender nem validar cada decisão de forma incremental. Foi quando decidi **construir a
+  skill manualmente e de forma incremental**: um anti-pattern por vez, testando o pipeline
+  ponta-a-ponta a cada adição, o que deu controle sobre custo e sobre a qualidade de cada
+  parte (ver o "Estado atual" no início desta seção).
 - **Validar sem sujar o fixture:** a Fase 3 foi testada de verdade (boot + endpoints)
   e depois **revertida via git**, preservando o `code-smells-project` no estado
   original de entrada do desafio.
