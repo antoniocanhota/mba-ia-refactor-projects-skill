@@ -46,18 +46,6 @@ Foram encontrados diversos problemas nos projetos desse desafio. Aqui estão lis
 | LOW | `routes/task_routes.py`, `routes/user_routes.py` — uso de `print()` para logging de eventos de negócio em vez do módulo `logging` | Impede configuração de níveis de log e integração com ferramentas de observabilidade em produção |
 | LOW | `utils/helpers.py:1-7` — imports não utilizados no módulo (`os`, `sys`, `json`, `math`) | Poluição do código com dependências mortas, sem valor funcional |
 
-> **Nota de escopo (análise manual × catálogo da skill):** parte dos achados CRITICAL
-> acima são vulnerabilidades de segurança *puras* — segredos/credenciais hardcoded, SQL
-> Injection, autenticação/autorização ausente (broken access control) e hash fraco (MD5).
-> A skill `refactor-arch` tem um catálogo **deliberadamente arquitetural/SOLID** (ver
-> seção B), então esses itens foram mapeados aqui na análise manual mas ficam **fora do
-> catálogo por decisão de escopo** — a skill só os captura quando coincidem com um sinal
-> arquitetural (ex: `SECRET_KEY` vazado em `/health` entra como "dados sensíveis na
-> resposta"; endpoint de SQL arbitrário entra como "God Class"). Não é lacuna acidental:
-> é a fronteira escolhida entre "refatorador de arquitetura" e "scanner de segurança".
-> Por isso os relatórios da Fase 2 (seção C) podem trazer, para o mesmo trecho, uma
-> classificação diferente da desta análise manual.
-
 
 **B) Seção "Construção da Skill":**
 
@@ -130,16 +118,18 @@ casada pelo nome).
   mas descartamos: quebraria o `## Summary` de 4 níveis do relatório e a ordenação por
   severidade, além de esconder a urgência — o **nome** do anti-pattern ("Uso de API
   deprecated") já cumpre o papel de categoria, com a severidade no colchete.
-- **Escopo do catálogo — arquitetura/SOLID, não varredura de vulnerabilidades:** a escala
-  de severidade do enunciado é explicitamente *"baseada em problemas de MVC e SOLID"*, e o
-  catálogo segue essa lente — detecta anti-patterns **estruturais** (God Class, regra no
-  controller, ausência de DI/estado global, duplicação, erro não centralizado etc.).
-  Vulnerabilidades de segurança *puras* — segredos/credenciais hardcoded, SQL Injection,
-  autenticação/autorização ausente e hash fraco — que a **Análise Manual (seção A)** levanta
-  ficam **fora do catálogo por decisão de escopo**. No enunciado esses itens aparecem como
-  exemplos que *ilustram o nível CRITICAL*, não como detecções exigidas (os requisitos
-  objetivos do catálogo são "≥8 anti-patterns com severidade distribuída" e "detecção de
-  APIs deprecated" — ambos atendidos). Consequência assumida: o catálogo só sinaliza essas
+- **Escopo do catálogo — o que escolhi implementar (arquitetura/SOLID), e o que deixei de
+  fora:** o enunciado fixa apenas um **piso** para o catálogo — "≥8 anti-patterns com
+  severidade distribuída" + "detecção de APIs deprecated" — e dá **liberdade sobre quais**
+  anti-patterns entram além disso. A escolha foi manter o catálogo alinhado à lente que a
+  própria escala de severidade do enunciado usa (*"baseada em problemas de MVC e SOLID"*):
+  anti-patterns **estruturais** (God Class, regra no controller, ausência de DI/estado
+  global, duplicação, erro não centralizado etc.). A **Análise Manual (seção A)** — que é um
+  inventário dos problemas *existentes* nos projetos, independente do que a skill cobre —
+  levanta também vulnerabilidades de segurança *puras* (segredos/credenciais hardcoded, SQL
+  Injection, autenticação/autorização ausente, hash fraco). Essas **não entraram no catálogo
+  por decisão de escopo**: no enunciado elas aparecem como exemplos que *ilustram o nível
+  CRITICAL*, não como detecções exigidas. Consequência assumida: o catálogo só sinaliza essas
   vulnerabilidades **quando coincidem com um sinal arquitetural** (`SECRET_KEY` ecoado em
   `/health` → "dados sensíveis na resposta"; endpoint de SQL arbitrário → "God Class"), e a
   Fase 3 acabou blindando vários deles onde houve essa sobreposição (autenticação nas rotas
